@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 export default function Predictions() {
-  const { ligaId } = useParams(); // ID da user_leagues (ex: 1)
+  const { ligaId } = useParams();
+  const navigate = useNavigate();
   const [jogos, setJogos] = useState([]);
   const [ligaNome, setLigaNome] = useState('');
   const [loading, setLoading] = useState(true);
-  
-  // Data local do usuário (YYYY-MM-DD)
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
 
   const proximosDias = Array.from({ length: 7 }, (_, i) => {
@@ -19,12 +18,15 @@ export default function Predictions() {
 
   useEffect(() => {
     async function fetchData() {
-      if (!ligaId) return;
+      // Segurança: se não tiver ligaId, não faz nada para não quebrar a rota
+      if (!ligaId || ligaId === "undefined") {
+        console.error("ID da liga ausente na URL");
+        return;
+      }
+
       setLoading(true);
-      
       try {
-        // 1. Busca info da Liga de Usuário e a chave para a liga oficial
-        // No seu diagrama, user_leagues tem official_league_id
+        // 1. Busca info da Liga de Usuário (public.user_leagues)
         const { data: infoLiga, error: ligaErr } = await supabase
           .from('user_leagues')
           .select('name, official_league_id')
@@ -32,15 +34,15 @@ export default function Predictions() {
           .single();
 
         if (ligaErr || !infoLiga) {
-          console.error("Liga não encontrada:", ligaErr);
+          console.error("Liga não encontrada no banco:", ligaErr);
           setLoading(false);
           return;
         }
 
         setLigaNome(infoLiga.name);
 
-        // 2. Busca Jogos usando o ID da liga OFICIAL (ex: 14 para NHL)
-        // Isso resolve o problema de retornar vazio e bugar a navegação
+        // 2. Busca Jogos usando o official_league_id (ex: 14 para NHL)
+        // Se usarmos o ligaId (1), o banco retorna vazio e o app pode bugar
         const inicioDiaLocal = new Date(`${dataSelecionada}T00:00:00`);
         const fimDiaLocal = new Date(`${dataSelecionada}T23:59:59`);
 
@@ -51,7 +53,7 @@ export default function Predictions() {
             home:home_team_id (name, url_logo),
             away:away_team_id (name, url_logo)
           `)
-          .eq('league_id', infoLiga.official_league_id) // FILTRO CORRETO
+          .eq('league_id', infoLiga.official_league_id) 
           .gte('date', inicioDiaLocal.toISOString())
           .lte('date', fimDiaLocal.toISOString())
           .order('date', { ascending: true });
@@ -77,8 +79,8 @@ export default function Predictions() {
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0A0E2A] text-[#0077FF] font-black italic animate-pulse">
-      CARREGANDO JOGOS...
+    <div className="flex items-center justify-center min-h-screen bg-[#0A0E2A] text-[#0077FF] font-black italic uppercase italic animate-pulse">
+      Sincronizando Jogos...
     </div>
   );
 
@@ -86,11 +88,14 @@ export default function Predictions() {
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 font-sans pb-32">
       <header className="max-w-2xl mx-auto mb-8">
         <div className="flex items-center justify-between mb-8">
-          <Link to={`/ligas/hockey`} className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black uppercase italic border border-[#26283A] hover:bg-[#0077FF] transition-all">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black uppercase italic border border-[#26283A] hover:bg-[#0077FF] transition-all"
+          >
             ← VOLTAR
-          </Link>
+          </button>
           <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter text-right">
-            iCHUTE <span className="text-white block text-sm">{ligaNome || 'LIGA'}</span>
+            iCHUTE <span className="text-white block text-sm">{ligaNome || 'CARREGANDO...'}</span>
           </h1>
         </div>
 
@@ -118,12 +123,11 @@ export default function Predictions() {
       {jogos.length === 0 ? (
         <div className="text-center p-20 border-2 border-dashed border-[#1A1C3A] rounded-[40px] max-w-2xl mx-auto">
           <p className="text-gray-600 font-black uppercase tracking-widest text-[10px] italic">Sem jogos oficiais para este dia</p>
-          <span className="text-[9px] text-[#26283A] mt-2 block uppercase">Verifique a tabela matches no Supabase</span>
         </div>
       ) : (
         <div className="grid gap-6 max-w-2xl mx-auto">
           {jogos.map((jogo) => (
-            <div key={jogo.id} className="relative bg-[#1A1C3A] border border-[#26283A] p-8 rounded-[35px] shadow-2xl transition-all">
+            <div key={jogo.id} className="relative bg-[#1A1C3A] border border-[#26283A] p-8 rounded-[35px] shadow-2xl transition-all hover:border-[#0077FF]/30">
               <div className="flex justify-between items-center gap-4">
                 <div className="flex-1 flex flex-col items-center text-center gap-3">
                   <img src={jogo.home?.url_logo} className="w-14 h-14 object-contain" alt="" />
@@ -146,7 +150,7 @@ export default function Predictions() {
               </div>
             </div>
           ))}
-          <button className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-xl bg-[#0077FF] text-white font-black py-6 rounded-[25px] shadow-[0_15px_40px_rgba(0,119,255,0.4)] uppercase italic text-xl z-50 hover:bg-blue-500 transition-all">
+          <button className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-xl bg-[#0077FF] text-white font-black py-6 rounded-[25px] shadow-[0_15px_40px_rgba(0,119,255,0.4)] uppercase italic text-xl z-50 hover:bg-blue-500 transition-all active:scale-95">
             CONFIRMAR PALPITES
           </button>
         </div>
