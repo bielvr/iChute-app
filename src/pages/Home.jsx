@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 
 const ESPORTES = [
-  { id: 'hockey', name: 'HOCKEY', icon: '🏒' },
-  { id: 'football', name: 'FUTEBOL', icon: '⚽' }
+  { id: '2', name: 'HOCKEY', icon: '🏒' },
+  { id: '1', name: 'FUTEBOL', icon: '⚽' }
 ];
 
 export default function Home() {
@@ -14,14 +14,14 @@ export default function Home() {
       </header>
 
       <div className="grid gap-4 max-w-lg mx-auto">
-        {ESPORTES.map((esporte) => (
+        {ESPORTES.map((sports) => (
           <Link 
-            key={esporte.id}
-            to={`/ligas/${esporte.id}`}
+            key={sports.id}
+            to={`/ligas/${sports.id}`}
             className="bg-[#1A1C3A] border border-[#26283A] p-8 rounded-[35px] flex items-center justify-between hover:border-[#0077FF] transition-all group"
           >
             <span className="text-2xl font-black italic uppercase group-hover:text-[#0077FF] transition-colors">{esporte.name}</span>
-            <span className="text-4xl">{esporte.icon}</span>
+            <span className="text-4xl">{sports.icon}</span>
           </Link>
         ))}
       </div>
