@@ -11,19 +11,21 @@ export default function Ligas() {
     async function fetchMinhasLigas() {
       setLoading(true);
       try {
+        // 1. Pega o usuário logado
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // O segredo está aqui: explicitamos a relação através da FK 'official_league_id'
+        // 2. Busca simplificada: pega as ligas do usuário e os dados da liga oficial
+        // Sem tentar fazer o join triplo que está quebrando
         const { data, error } = await supabase
           .from('user_league_members')
           .select(`
-            user_league_id,
-            user_leagues!inner (
+            user_leagues (
               id,
               name,
               official_league_id,
-              leagues!official_league_id (
+              leagues (
+                id,
                 sport_id
               )
             )
@@ -33,21 +35,20 @@ export default function Ligas() {
         if (error) throw error;
 
         if (data) {
-          // Filtramos garantindo que a comparação ignore tipos (string vs number)
+          // 3. Filtro manual no JavaScript para garantir que não escape nada
+          // Comparamos o sport_id da tabela 'leagues' com o esporteId da URL
           const filtradas = data
             .filter(item => {
-              const sportIdBanco = item.user_leagues?.leagues?.sport_id;
-              return String(sportIdBanco) === String(esporteId);
+              const ligaOficial = item.user_leagues?.leagues;
+              // Forçamos ambos a virarem String para evitar erro de tipo (2 vs "2")
+              return String(ligaOficial?.sport_id) === String(esporteId);
             })
-            .map(item => ({
-              id: item.user_leagues.id,
-              name: item.user_leagues.name
-            }));
+            .map(item => item.user_leagues);
           
           setLigas(filtradas);
         }
       } catch (err) {
-        console.error("Erro na busca das ligas:", err.message);
+        console.error("Erro técnico:", err.message);
       } finally {
         setLoading(false);
       }
@@ -69,7 +70,10 @@ export default function Ligas() {
 
       <div className="grid gap-4 max-w-lg mx-auto">
         {loading ? (
-          <p className="text-center animate-pulse font-black opacity-50 uppercase text-xs">Buscando dados...</p>
+          <div className="text-center py-10">
+            <div className="w-8 h-8 border-4 border-[#0077FF] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="font-black italic opacity-50 uppercase text-xs">Sincronizando iChute...</p>
+          </div>
         ) : ligas.length > 0 ? (
           ligas.map((liga) => (
             <Link 
@@ -79,7 +83,7 @@ export default function Ligas() {
             >
               <span className="font-black italic uppercase group-hover:text-[#0077FF] transition-colors">{liga.name}</span>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase transition-opacity">Entrar</span>
+                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase">Entrar</span>
                 <span className="text-[#0077FF] font-bold">→</span>
               </div>
             </Link>
@@ -87,8 +91,9 @@ export default function Ligas() {
         ) : (
           <div className="text-center p-12 border-2 border-dashed border-[#1A1C3A] rounded-[40px]">
             <p className="text-gray-500 font-black italic uppercase text-sm">Nenhuma liga encontrada</p>
-            <p className="text-gray-600 text-[10px] mt-2 leading-relaxed uppercase">
-              Verifique se a sua liga no banco aponta para o ID de esporte correto.
+            <p className="text-gray-600 text-[10px] mt-4 leading-relaxed uppercase">
+              ID de Esporte Selecionado: {esporteId} <br/>
+              Verifique se na tabela "leagues", o sport_id da liga 14 é "2".
             </p>
           </div>
         )}
