@@ -11,40 +11,39 @@ export default function Ligas() {
     async function fetchMinhasLigas() {
       setLoading(true);
       try {
-        // 1. Pegamos o usuário logado
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 2. Buscamos em quais ligas o usuário 2 está inscrito
-        const { data: participacoes, error: err1 } = await supabase
+        // BUSCA EM DUAS ETAPAS PARA MATAR O PROBLEMA DE JOIN
+        // 1. Pegamos os IDs das ligas onde o cara é membro (User ID 2)
+        const { data: membros, error: errMembros } = await supabase
           .from('user_league_members')
           .select('user_league_id')
           .eq('user_id', user.id);
 
-        if (err1 || !participacoes.length) {
+        if (errMembros || !membros.length) {
           setLigas([]);
           return;
         }
 
-        const idsDasLigas = participacoes.map(p => p.user_league_id);
+        const idsLigas = membros.map(m => m.user_league_id);
 
-        // 3. Buscamos os detalhes dessas ligas E o sport_id da liga oficial
-        // Usamos a sintaxe correta para a sua FK: leagues!official_league_id
-        const { data: ligasEncontradas, error: err2 } = await supabase
+        // 2. Buscamos os dados das ligas e o sport_id da oficial de forma explícita
+        // Usamos !official_league_id para FORÇAR o Supabase a usar a coluna certa
+        const { data: ligasEncontradas, error: errLigas } = await supabase
           .from('user_leagues')
           .select(`
             id,
             name,
-            official_league_id,
             leagues!official_league_id (
               sport_id
             )
           `)
-          .in('id', idsDasLigas);
+          .in('id', idsLigas);
 
-        if (err2) throw err2;
+        if (errLigas) throw errLigas;
 
-        // 4. Filtramos pelo esporte da URL (Futebol=1, Hockey=2)
+        // Filtro manual para garantir 100% de precisão (Hockey = 2, Futebol = 1)
         const filtradas = ligasEncontradas.filter(liga => {
           const sId = liga.leagues?.sport_id;
           return String(sId) === String(esporteId);
@@ -53,14 +52,14 @@ export default function Ligas() {
         setLigas(filtradas);
 
       } catch (err) {
-        console.error("Erro fatal:", err.message);
+        console.error("Erro na integração:", err.message);
       } finally {
         setLoading(false);
       }
     }
 
     if (esporteId) fetchMinhasLigas();
-  }, [esporteId]);
+  }, [esporteId, supabase]);
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-6 font-sans">
@@ -75,7 +74,7 @@ export default function Ligas() {
 
       <div className="grid gap-4 max-w-lg mx-auto">
         {loading ? (
-          <p className="text-center animate-pulse font-black opacity-50 uppercase text-xs">Cruzando dados...</p>
+          <p className="text-center animate-pulse font-black opacity-50 uppercase text-xs">Validando com iChute...</p>
         ) : ligas.length > 0 ? (
           ligas.map((liga) => (
             <Link 
@@ -84,18 +83,18 @@ export default function Ligas() {
               className="bg-[#1A1C3A] border border-[#26283A] p-6 rounded-[30px] flex justify-between items-center hover:border-[#0077FF] hover:bg-[#1e2145] transition-all group"
             >
               <span className="font-black italic uppercase group-hover:text-[#0077FF] transition-colors">{liga.name}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase">Entrar</span>
-                <span className="text-[#0077FF] font-bold">→</span>
+              <div className="flex items-center gap-2 text-[#0077FF]">
+                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase">Acessar</span>
+                <span className="font-bold">→</span>
               </div>
             </Link>
           ))
         ) : (
           <div className="text-center p-12 border-2 border-dashed border-[#1A1C3A] rounded-[40px]">
-            <p className="text-gray-500 font-black italic uppercase text-sm">Nenhuma liga encontrada</p>
+            <p className="text-gray-500 font-black italic uppercase text-sm font-black">Nada por aqui</p>
             <p className="text-gray-600 text-[10px] mt-4 leading-relaxed uppercase">
-              O sistema buscou por Esporte ID: {esporteId} <br/>
-              Confirme se a NHL na tabela 'leagues' tem sport_id = 2.
+              URL ID: {esporteId} | Usuário: Conectado <br/>
+              A liga "{esporteId === '2' ? 'Dedo no gelo' : 'Brasileirão'}" deve estar no banco.
             </p>
           </div>
         )}
