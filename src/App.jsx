@@ -16,7 +16,7 @@ function App() {
         <Route path="/ligas/:esporteId" element={<Ligas />} />
 
         {/* PROXIMA ROTA: PALPITES DA LIGA ESPECIFICA */}
-        <Route path="/predictions/:ligaId" element={<div className="text-white p-10">Página de Palpites em breve!</div>} />
+        <Route path="/predictions/:ligaId" element={<Predictions />} />
 
         {/* ROTA DE SEGURANÇA (404) */}
         <Route path="*" element={<Home />} />
