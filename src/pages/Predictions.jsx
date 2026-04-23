@@ -3,13 +3,16 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 export default function Predictions() {
-  const { ligaId } = useParams();
+  const { ligaId } = useParams(); // Pega o ID da URL (ex: /predictions/1)
   const navigate = useNavigate();
   const [jogos, setJogos] = useState([]);
   const [ligaNome, setLigaNome] = useState('');
   const [loading, setLoading] = useState(true);
+  
+  // Define a data inicial (Hoje) no formato YYYY-MM-DD
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
 
+  // Gera os próximos 7 dias para o seletor
   const proximosDias = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
@@ -18,34 +21,29 @@ export default function Predictions() {
 
   useEffect(() => {
     async function fetchData() {
-      // Segurança: se não tiver ligaId, não faz nada para não quebrar a rota
-      if (!ligaId || ligaId === "undefined") {
-        console.error("ID da liga ausente na URL");
-        return;
-      }
-
+      if (!ligaId || ligaId === "undefined") return;
+      
       setLoading(true);
+      console.log("Iniciando busca para Liga ID:", ligaId);
+
       try {
-        // 1. Busca info da Liga de Usuário (public.user_leagues)
+        // 1. Busca a liga do usuário para descobrir qual é a liga oficial (ex: NHL ID 14)
         const { data: infoLiga, error: ligaErr } = await supabase
           .from('user_leagues')
           .select('name, official_league_id')
           .eq('id', ligaId)
           .single();
 
-        if (ligaErr || !infoLiga) {
-          console.error("Liga não encontrada no banco:", ligaErr);
-          setLoading(false);
-          return;
-        }
-
+        if (ligaErr) throw ligaErr;
+        
         setLigaNome(infoLiga.name);
+        console.log("Liga Oficial vinculada:", infoLiga.official_league_id);
 
-        // 2. Busca Jogos usando o official_league_id (ex: 14 para NHL)
-        // Se usarmos o ligaId (1), o banco retorna vazio e o app pode bugar
-        const inicioDiaLocal = new Date(`${dataSelecionada}T00:00:00`);
-        const fimDiaLocal = new Date(`${dataSelecionada}T23:59:59`);
+        // 2. Define o intervalo de tempo exato para filtrar a coluna 'date' (timestamptz)
+        const inicio = `${dataSelecionada}T00:00:00.000Z`;
+        const fim = `${dataSelecionada}T23:59:59.999Z`;
 
+        // 3. Busca os jogos (matches) da liga oficial naquela data específica
         const { data: matchesData, error: matchesErr } = await supabase
           .from('matches')
           .select(`
@@ -53,16 +51,18 @@ export default function Predictions() {
             home:home_team_id (name, url_logo),
             away:away_team_id (name, url_logo)
           `)
-          .eq('league_id', infoLiga.official_league_id) 
-          .gte('date', inicioDiaLocal.toISOString())
-          .lte('date', fimDiaLocal.toISOString())
+          .eq('league_id', infoLiga.official_league_id)
+          .gte('date', inicio)
+          .lte('date', fim)
           .order('date', { ascending: true });
 
         if (matchesErr) throw matchesErr;
+
+        console.log(`Sucesso! Encontrados ${matchesData?.length || 0} jogos.`);
         setJogos(matchesData || []);
 
       } catch (error) {
-        console.error("Erro na busca de dados:", error.message);
+        console.error("ERRO CRÍTICO NO FETCH:", error.message);
       } finally {
         setLoading(false);
       }
@@ -79,8 +79,8 @@ export default function Predictions() {
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen bg-[#0A0E2A] text-[#0077FF] font-black italic uppercase italic animate-pulse">
-      Sincronizando Jogos...
+    <div className="flex items-center justify-center min-h-screen bg-[#0A0E2A] text-[#0077FF] font-black italic animate-pulse uppercase">
+      Sincronizando iChute...
     </div>
   );
 
@@ -99,6 +99,7 @@ export default function Predictions() {
           </h1>
         </div>
 
+        {/* Seletor de Datas */}
         <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
           {proximosDias.map((data) => {
             const isSelected = data === dataSelecionada;
@@ -120,36 +121,46 @@ export default function Predictions() {
         </div>
       </header>
 
+      {/* Listagem de Jogos */}
       {jogos.length === 0 ? (
         <div className="text-center p-20 border-2 border-dashed border-[#1A1C3A] rounded-[40px] max-w-2xl mx-auto">
-          <p className="text-gray-600 font-black uppercase tracking-widest text-[10px] italic">Sem jogos oficiais para este dia</p>
+          <p className="text-gray-600 font-black uppercase tracking-widest text-[10px] italic">
+            Sem jogos agendados para este dia
+          </p>
         </div>
       ) : (
         <div className="grid gap-6 max-w-2xl mx-auto">
           {jogos.map((jogo) => (
-            <div key={jogo.id} className="relative bg-[#1A1C3A] border border-[#26283A] p-8 rounded-[35px] shadow-2xl transition-all hover:border-[#0077FF]/30">
+            <div key={jogo.id} className="relative bg-[#1A1C3A] border border-[#26283A] p-8 rounded-[35px] shadow-2xl transition-all">
               <div className="flex justify-between items-center gap-4">
+                {/* Time Casa */}
                 <div className="flex-1 flex flex-col items-center text-center gap-3">
                   <img src={jogo.home?.url_logo} className="w-14 h-14 object-contain" alt="" />
                   <span className="text-[11px] font-black uppercase leading-tight tracking-tight">{jogo.home?.name}</span>
                 </div>
 
+                {/* Placar/Inputs */}
                 <div className="flex items-center gap-3 bg-[#0A0E2A] p-4 rounded-[25px] border border-[#26283A]">
                   <input type="number" className="w-16 h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-3xl border-none focus:ring-2 focus:ring-[#0077FF] text-[#0077FF] appearance-none m-0" placeholder="0" />
                   <span className="text-[#26283A] font-black italic text-2xl">X</span>
                   <input type="number" className="w-16 h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-3xl border-none focus:ring-2 focus:ring-[#0077FF] text-[#0077FF] appearance-none m-0" placeholder="0" />
                 </div>
 
+                {/* Time Fora */}
                 <div className="flex-1 flex flex-col items-center text-center gap-3">
                   <img src={jogo.away?.url_logo} className="w-14 h-14 object-contain" alt="" />
                   <span className="text-[11px] font-black uppercase leading-tight tracking-tight">{jogo.away?.name}</span>
                 </div>
               </div>
+              
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-                <span className="text-[10px] font-black text-[#26283A] uppercase tracking-[0.3em] italic">{formatarHoraLocal(jogo.date)}</span>
+                <span className="text-[10px] font-black text-[#26283A] uppercase tracking-[0.3em] italic">
+                  {formatarHoraLocal(jogo.date)}
+                </span>
               </div>
             </div>
           ))}
+
           <button className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-xl bg-[#0077FF] text-white font-black py-6 rounded-[25px] shadow-[0_15px_40px_rgba(0,119,255,0.4)] uppercase italic text-xl z-50 hover:bg-blue-500 transition-all active:scale-95">
             CONFIRMAR PALPITES
           </button>
