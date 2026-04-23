@@ -11,26 +11,39 @@ export default function Ligas() {
     async function fetchMinhasLigas() {
       setLoading(true);
       try {
-        // 1. Pega o usuário logado (User ID: 2 no seu banco)
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        // 1. Pegamos o usuário de forma robusta
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        // LOG DE DEBUG PARA VOCÊ VER NO CONSOLE (F12)
+        console.log("ID do Esporte na URL:", esporteId);
+        console.log("Usuário logado:", user?.id);
 
-        // 2. Busca em quais ligas o usuário está inscrito
-        const { data: participacoes, error: errMembros } = await supabase
+        if (userError || !user) {
+          console.error("Erro ao identificar usuário. Certifique-se de estar logado.");
+          setLoading(false);
+          return;
+        }
+
+        // 2. Busca direta simplificada para evitar problemas de Join complexo
+        // Pegamos as participações do usuário logado
+        const { data: membros, error: errMembros } = await supabase
           .from('user_league_members')
           .select('user_league_id')
           .eq('user_id', user.id);
 
-        if (errMembros || !participacoes?.length) {
+        if (errMembros) throw errMembros;
+
+        if (!membros || membros.length === 0) {
+          console.warn("Usuário não é membro de nenhuma liga no banco.");
           setLigas([]);
           return;
         }
 
-        const idsDasLigas = participacoes.map(p => p.user_league_id);
+        const idsLigas = mambros.map(m => m.user_league_id);
 
-        // 3. Busca os detalhes das ligas usando a FK explícita 'official_league_id'
-        // Isso resolve o problema de o Supabase não saber qual caminho seguir
-        const { data: ligasEncontradas, error: errLigas } = await supabase
+        // 3. Busca os detalhes das ligas e o esporte correspondente
+        // Usamos !official_league_id porque é o nome exato da sua FK no banco
+        const { data: ligasNoBanco, error: errLigas } = await supabase
           .from('user_leagues')
           .select(`
             id,
@@ -39,23 +52,22 @@ export default function Ligas() {
               sport_id
             )
           `)
-          .in('id', idsDasLigas);
+          .in('id', idsLigas);
 
         if (errLigas) throw errLigas;
 
-        // 4. Filtro manual para garantir match de tipos (Hockey=2, Futebol=1)
-        const filtradas = ligasEncontradas.filter(liga => {
-          const sId = liga.leagues?.sport_id;
-          return String(sId) === String(esporteId);
-        }).map(liga => ({
-          id: liga.id,
-          name: liga.name
-        }));
+        // 4. Filtragem manual ultra-segura
+        const filtradas = ligasNoBanco.filter(item => {
+          const sportIdDoBanco = item.leagues?.sport_id;
+          // Compara como string para não ter erro de 2 ser diferente de "2"
+          return String(sportIdDoBanco) === String(esporteId);
+        });
 
+        console.log("Ligas após filtro de esporte:", filtradas);
         setLigas(filtradas);
 
       } catch (err) {
-        console.error("Erro no iChute:", err.message);
+        console.error("ERRO CRÍTICO:", err.message);
       } finally {
         setLoading(false);
       }
@@ -65,40 +77,34 @@ export default function Ligas() {
   }, [esporteId]);
 
   return (
-    <div className="min-h-screen bg-[#0A0E2A] text-white p-6 font-sans">
-      <header className="mb-10 mt-4 flex items-center gap-4">
-        {/* Link simples, o Router já deve estar no topo do seu App */}
-        <Link to="/" className="bg-[#1A1C3A] p-3 rounded-xl text-xs font-black italic hover:bg-[#26283A] transition-all">
-          ← VOLTAR
+    <div className="min-h-screen bg-[#0A0E2A] text-white p-6">
+      <header className="mb-10 flex items-center gap-4">
+        <Link to="/" className="bg-[#1A1C3A] p-3 rounded-xl text-[10px] font-black italic uppercase">
+          ← Voltar
         </Link>
-        <h1 className="text-2xl font-black italic uppercase tracking-tighter">
+        <h1 className="text-2xl font-black italic uppercase italic">
           Minhas Ligas <span className="text-[#0077FF]">{esporteId === '2' ? 'HOCKEY' : 'FUTEBOL'}</span>
         </h1>
       </header>
 
-      <div className="grid gap-4 max-w-lg mx-auto">
+      <div className="grid gap-4 max-w-md mx-auto">
         {loading ? (
-          <p className="text-center animate-pulse font-black opacity-50 uppercase text-xs">Sincronizando iChute...</p>
+          <div className="text-center font-black italic opacity-40 animate-pulse">CARREGANDO...</div>
         ) : ligas.length > 0 ? (
           ligas.map((liga) => (
             <Link 
               key={liga.id}
               to={`/palpites/${liga.id}`}
-              className="bg-[#1A1C3A] border border-[#26283A] p-6 rounded-[30px] flex justify-between items-center hover:border-[#0077FF] hover:bg-[#1e2145] transition-all group"
+              className="bg-[#1A1C3A] border border-[#26283A] p-6 rounded-[25px] flex justify-between items-center hover:border-[#0077FF] transition-all"
             >
-              <span className="font-black italic uppercase group-hover:text-[#0077FF] transition-colors">{liga.name}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase">Acessar</span>
-                <span className="text-[#0077FF] font-bold">→</span>
-              </div>
+              <span className="font-black italic uppercase">{liga.name}</span>
+              <span className="text-[#0077FF] font-bold">→</span>
             </Link>
           ))
         ) : (
-          <div className="text-center p-12 border-2 border-dashed border-[#1A1C3A] rounded-[40px]">
-            <p className="text-gray-500 font-black italic uppercase text-sm">Nenhuma liga encontrada</p>
-            <p className="text-gray-600 text-[10px] mt-4 leading-relaxed uppercase">
-              Esporte ID: {esporteId} | Banco de Dados OK
-            </p>
+          <div className="text-center p-10 border-2 border-dashed border-[#1A1C3A] rounded-[30px] opacity-60">
+            <p className="font-black italic uppercase text-sm">Nenhuma liga encontrada</p>
+            <p className="text-[10px] mt-2">VERIFIQUE O RLS NO SUPABASE OU SE O USER_ID É 2</p>
           </div>
         )}
       </div>
