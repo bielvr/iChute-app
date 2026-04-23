@@ -1,0 +1,50 @@
+sport_id,name,api_id
+1,Brasileirão,71
+1,Premier League,39
+1,La Liga,140
+1,Serie A,135
+1,Bundesliga,78
+1,Ligue 1,61
+1,Champions League,2
+1,Europa League,3
+1,Conference League,848
+1,Libertadores,13
+1,Sudamericana,11
+1,World Cup,1
+1,Club World Cup,15
+2,NHL,
+2,AHL,
+2,CHL,
+2,KHL,
+2,World Juniors,
+2,Olympics,
+2,World Cup,
+3,F1,
+3,NASCAR,
+3,WEC,
+3,MotoGP,
+3,WCR,
+4,Tour de France,
+4,Giro d'Italia,
+4,Vuelta a España,
+4,World Championship,
+4,Milan-San Remo,
+4,Tour of Flanders,
+4,Paris-Roubaix,
+4,Liège–Bastogne–Liège,
+4,Giro di Lombardia,
+4,Olmpics,
+5,NBA,
+5,EuroLeague,
+5,Olympics,
+6,MLB,
+6,World Baseball Classic,
+6,Olympics,
+6,NPB,
+6,KBO League,
+7,NFL,
+8,Australian Open,
+8,Roland Garros,
+8,Wimbledon,
+8,US Open,
+8,Olympics,
