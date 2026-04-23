@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 export default function Predictions() {
-  const { ligaId } = useParams();
+  const { ligaId } = useParams(); // ID da user_leagues (ex: 1)
   const [jogos, setJogos] = useState([]);
   const [ligaNome, setLigaNome] = useState('');
   const [loading, setLoading] = useState(true);
@@ -19,34 +19,51 @@ export default function Predictions() {
 
   useEffect(() => {
     async function fetchData() {
+      if (!ligaId) return;
       setLoading(true);
       
-      // 1. Busca nome da Liga
-      const { data: infoLiga } = await supabase
-        .from('user_leagues')
-        .select('name')
-        .eq('id', ligaId)
-        .single();
-      if (infoLiga) setLigaNome(infoLiga.name);
+      try {
+        // 1. Busca info da Liga de Usuário e a chave para a liga oficial
+        // No seu diagrama, user_leagues tem official_league_id
+        const { data: infoLiga, error: ligaErr } = await supabase
+          .from('user_leagues')
+          .select('name, official_league_id')
+          .eq('id', ligaId)
+          .single();
 
-      // 2. Busca Jogos com ajuste de Fuso
-      const inicioDiaLocal = new Date(`${dataSelecionada}T00:00:00`);
-      const fimDiaLocal = new Date(`${dataSelecionada}T23:59:59`);
+        if (ligaErr || !infoLiga) {
+          console.error("Liga não encontrada:", ligaErr);
+          setLoading(false);
+          return;
+        }
 
-      const { data, error } = await supabase
-        .from('matches')
-        .select(`
-          *,
-          home:home_team_id (name, url_logo),
-          away:away_team_id (name, url_logo)
-        `)
-        .eq('league_id', ligaId)
-        .gte('date', inicioDiaLocal.toISOString())
-        .lte('date', fimDiaLocal.toISOString())
-        .order('date', { ascending: true });
+        setLigaNome(infoLiga.name);
 
-      if (!error) setJogos(data || []);
-      setLoading(false);
+        // 2. Busca Jogos usando o ID da liga OFICIAL (ex: 14 para NHL)
+        // Isso resolve o problema de retornar vazio e bugar a navegação
+        const inicioDiaLocal = new Date(`${dataSelecionada}T00:00:00`);
+        const fimDiaLocal = new Date(`${dataSelecionada}T23:59:59`);
+
+        const { data: matchesData, error: matchesErr } = await supabase
+          .from('matches')
+          .select(`
+            *,
+            home:home_team_id (name, url_logo),
+            away:away_team_id (name, url_logo)
+          `)
+          .eq('league_id', infoLiga.official_league_id) // FILTRO CORRETO
+          .gte('date', inicioDiaLocal.toISOString())
+          .lte('date', fimDiaLocal.toISOString())
+          .order('date', { ascending: true });
+
+        if (matchesErr) throw matchesErr;
+        setJogos(matchesData || []);
+
+      } catch (error) {
+        console.error("Erro na busca de dados:", error.message);
+      } finally {
+        setLoading(false);
+      }
     }
 
     fetchData();
@@ -59,7 +76,11 @@ export default function Predictions() {
     });
   };
 
-  if (loading) return <div className="p-8 text-white bg-[#0A0E2A] min-h-screen font-black italic text-center">CARREGANDO...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0A0E2A] text-[#0077FF] font-black italic animate-pulse">
+      CARREGANDO JOGOS...
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 font-sans pb-32">
@@ -69,7 +90,7 @@ export default function Predictions() {
             ← VOLTAR
           </Link>
           <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter text-right">
-            iCHUTE <span className="text-white block text-sm">{ligaNome || 'CARREGANDO...'}</span>
+            iCHUTE <span className="text-white block text-sm">{ligaNome || 'LIGA'}</span>
           </h1>
         </div>
 
@@ -96,7 +117,8 @@ export default function Predictions() {
 
       {jogos.length === 0 ? (
         <div className="text-center p-20 border-2 border-dashed border-[#1A1C3A] rounded-[40px] max-w-2xl mx-auto">
-          <p className="text-gray-600 font-black uppercase tracking-widest text-[10px] italic">Sem jogos para este dia</p>
+          <p className="text-gray-600 font-black uppercase tracking-widest text-[10px] italic">Sem jogos oficiais para este dia</p>
+          <span className="text-[9px] text-[#26283A] mt-2 block uppercase">Verifique a tabela matches no Supabase</span>
         </div>
       ) : (
         <div className="grid gap-6 max-w-2xl mx-auto">
