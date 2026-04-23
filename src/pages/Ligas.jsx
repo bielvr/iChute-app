@@ -11,21 +11,13 @@ export default function Ligas() {
     async function fetchMinhasLigas() {
       setLoading(true);
       try {
-        // 1. Pega o usuário logado
         const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          console.error("Usuário não autenticado");
-          setLoading(false);
-          return;
-        }
+        if (!user) return;
 
-        // 2. Query simplificada para evitar erro de join profundo
-        // Buscamos as ligas que o usuário é membro
+        // Query ajustada para as colunas exatas dos seus prints
         const { data, error } = await supabase
           .from('user_league_members')
           .select(`
-            user_league_id,
             user_leagues (
               id,
               name,
@@ -39,24 +31,19 @@ export default function Ligas() {
 
         if (error) throw error;
 
-        // 3. Filtro manual no JS (blindado contra erros de tipo String/Number)
         if (data) {
+          // Filtro manual para garantir comparação entre String e Number
           const filtradas = data
             .filter(item => {
-              // Verifica se a liga existe e se o sport_id bate com o da URL
-              const sId = item.user_leagues?.leagues?.sport_id;
-              return sId?.toString() === esporteId?.toString();
+              const sportIdNoBanco = item.user_leagues?.leagues?.sport_id;
+              return String(sportIdNoBanco) === String(esporteId);
             })
-            .map(item => ({
-              id: item.user_leagues.id,
-              name: item.user_leagues.name
-            }));
+            .map(item => item.user_leagues);
           
           setLigas(filtradas);
         }
-
       } catch (err) {
-        console.error("Erro na busca:", err.message);
+        console.error("Erro:", err.message);
       } finally {
         setLoading(false);
       }
@@ -66,45 +53,31 @@ export default function Ligas() {
   }, [esporteId]);
 
   return (
-    <div className="min-h-screen bg-[#0A0E2A] text-white p-6 font-sans">
+    <div className="min-h-screen bg-[#0A0E2A] text-white p-6">
       <header className="mb-10 mt-4 flex items-center gap-4">
-        <Link to="/" className="bg-[#1A1C3A] p-3 rounded-xl text-xs font-black italic hover:bg-[#26283A] transition-colors">
-          ← VOLTAR
-        </Link>
-        <h1 className="text-2xl font-black italic uppercase tracking-tighter">
-          Minhas Ligas <span className="text-[#0077FF]">{esporteId === '1' ? 'FUTEBOL' : 'HOCKEY'}</span>
+        <Link to="/" className="bg-[#1A1C3A] p-3 rounded-xl text-xs font-black italic">← VOLTAR</Link>
+        <h1 className="text-2xl font-black italic uppercase">
+          Minhas Ligas <span className="text-[#0077FF]">{esporteId === '2' ? 'HOCKEY' : 'FUTEBOL'}</span>
         </h1>
       </header>
 
       <div className="grid gap-4 max-w-lg mx-auto">
         {loading ? (
-          <div className="flex flex-col items-center gap-2 opacity-50">
-            <div className="w-8 h-8 border-4 border-[#0077FF] border-t-transparent rounded-full animate-spin"></div>
-            <p className="font-black italic text-xs uppercase tracking-widest">Buscando...</p>
-          </div>
+          <p className="text-center animate-pulse opacity-50 font-black">CARREGANDO...</p>
         ) : ligas.length > 0 ? (
           ligas.map((liga) => (
             <Link 
               key={liga.id}
               to={`/palpites/${liga.id}`}
-              className="bg-[#1A1C3A] border border-[#26283A] p-6 rounded-[30px] flex justify-between items-center hover:border-[#0077FF] hover:bg-[#1e2145] transition-all group"
+              className="bg-[#1A1C3A] border border-[#26283A] p-6 rounded-[30px] flex justify-between items-center hover:border-[#0077FF] transition-all group"
             >
-              <span className="font-black italic uppercase group-hover:text-[#0077FF] transition-colors">
-                {liga.name}
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase">Entrar</span>
-                <span className="text-[#0077FF] font-bold">→</span>
-              </div>
+              <span className="font-black italic uppercase group-hover:text-[#0077FF]">{liga.name}</span>
+              <span className="text-[10px] font-black opacity-50 bg-[#26283A] px-3 py-1 rounded-full">ENTRAR</span>
             </Link>
           ))
         ) : (
-          <div className="text-center p-12 border-2 border-dashed border-[#1A1C3A] rounded-[40px]">
-            <p className="text-gray-500 font-black italic uppercase text-sm">Nenhuma liga encontrada</p>
-            <p className="text-gray-600 text-[10px] mt-2 leading-relaxed uppercase">
-              Verifique se a liga ID 1 no seu banco <br/>
-              está vinculada a um esporte na tabela Leagues.
-            </p>
+          <div className="text-center p-10 border border-dashed border-gray-800 rounded-[30px]">
+            <p className="text-gray-500 italic text-sm font-bold">NENHUMA LIGA DE {esporteId === '2' ? 'HOCKEY' : 'FUTEBOL'} ENCONTRADA</p>
           </div>
         )}
       </div>
