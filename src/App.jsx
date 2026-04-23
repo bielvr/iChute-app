@@ -1,29 +1,63 @@
-import { Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
-import Ligas from './pages/Ligas';
-import Predictions from './pages/Predictions'
-import Login from './pages/Login';
-
-// Se você já tiver a página de palpites, importe-a aqui também
-// import Predictions from './pages/Predictions';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
+import Home from './pages/Home'; 
+import Ligas from './pages/Ligas'; 
+import Predictions from './pages/Predictions'; 
+import Login from './pages/Login'; 
 
 function App() {
+  // undefined evita que a app redirecione antes de validar se há um user guardado no cache
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    // Verifica se já existe uma sessão ativa ao carregar a página
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    // Ouve mudanças de estado (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Enquanto o Supabase não responde, não renderizamos nada para evitar saltos de página
+  if (session === undefined) return null;
+
   return (
-    <div className="min-h-screen bg-[#0A0E2A]">
+    <Router>
       <Routes>
-        {/* ROTA DA HOME (ESPORTES) */}
-        <Route path="/" element={<Home />} />
+        {/* Rota Raiz: Se logado, vai para Sports. Caso contrário, Login */}
+        <Route 
+          path="/" 
+          element={session ? <Navigate to="/home" replace /> : <Login />} 
+        />
 
-        {/* ROTA DAS LIGAS DO ESPORTE SELECIONADO */}
-        <Route path="/ligas/:esporteId" element={<Ligas />} />
+        {/* Escolha do Esporte */}
+        <Route 
+          path="/home" 
+          element={session ? <Home /> : <Navigate to="/" replace />} 
+        />
 
-        {/* PROXIMA ROTA: PALPITES DA LIGA ESPECIFICA */}
-        <Route path="/predictions/:ligaId" element={<Predictions />} />
+        {/* Minhas Ligas */}
+        <Route 
+          path="/leagues/:sportId" 
+          element={session ? <Ligas /> : <Navigate to="/" replace />} 
+        />
 
-        {/* ROTA DE SEGURANÇA (404) */}
-        <Route path="*" element={<Home />} />
+        {/* Palpites iChute */}
+        <Route 
+          path="/predictions/:ligaId" 
+          element={session ? <Predictions /> : <Navigate to="/" replace />} 
+        />
+
+        {/* Fallback para rotas inexistentes */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </div>
+    </Router>
   );
 }
 
