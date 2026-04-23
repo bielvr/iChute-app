@@ -9,7 +9,7 @@ export default function Predictions() {
   const [ligaNome, setLigaNome] = useState('');
   const [loading, setLoading] = useState(true);
   
-  // Data de hoje para o iChute
+  // Mantemos a data selecionada no formato local do usuário
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
 
   const proximosDias = Array.from({ length: 7 }, (_, i) => {
@@ -24,7 +24,7 @@ export default function Predictions() {
       
       setLoading(true);
       try {
-        // 1. Busca a liga do usuário para pegar o official_league_id (ex: 14)
+        // 1. Busca a liga do usuário
         const { data: infoLiga, error: ligaErr } = await supabase
           .from('user_leagues')
           .select('name, official_league_id')
@@ -34,9 +34,14 @@ export default function Predictions() {
         if (ligaErr) throw ligaErr;
         setLigaNome(infoLiga.name);
 
-        // 2. Filtro de data para a tabela matches
-        const inicio = `${dataSelecionada}T00:00:00.000Z`;
-        const fim = `${dataSelecionada}T23:59:59.999Z`;
+        /**
+         * AJUSTE DE FUSO HORÁRIO:
+         * Para pegar jogos que no UTC podem estar no dia seguinte, mas localmente são "hoje",
+         * buscamos uma janela de 36 horas (do início do dia até o meio do dia seguinte no UTC).
+         */
+        const inicioBusca = new Date(`${dataSelecionada}T00:00:00Z`); 
+        const fimBusca = new Date(inicioBusca);
+        fimBusca.setHours(fimBusca.getHours() + 36); 
 
         const { data: matchesData, error: matchesErr } = await supabase
           .from('matches')
@@ -46,12 +51,23 @@ export default function Predictions() {
             away:away_team_id (name, url_logo)
           `)
           .eq('league_id', infoLiga.official_league_id)
-          .gte('date', inicio)
-          .lte('date', fim)
+          .gte('date', inicioBusca.toISOString())
+          .lte('date', fimBusca.toISOString())
           .order('date', { ascending: true });
 
         if (matchesErr) throw matchesErr;
-        setJogos(matchesData || []);
+
+        /**
+         * FILTRO LOCAL:
+         * Agora filtramos o array para mostrar APENAS o que cai no dia selecionado
+         * segundo o relógio de quem está acessando.
+         */
+        const jogosDoDiaLocal = (matchesData || []).filter(jogo => {
+          const dataJogoLocal = new Date(jogo.date).toLocaleDateString('en-CA');
+          return dataJogoLocal === dataSelecionada;
+        });
+
+        setJogos(jogosDoDiaLocal);
 
       } catch (error) {
         console.error("Erro iChute:", error.message);
@@ -62,16 +78,19 @@ export default function Predictions() {
     fetchData();
   }, [ligaId, dataSelecionada]);
 
+  // Formata a hora para o fuso do navegador do usuário
   const formatarHoraLocal = (dateString) => {
     if (!dateString) return "--:--";
-    return new Date(dateString).toLocaleTimeString('pt-BR', { 
-      hour: '2-digit', minute: '2-digit', hour12: false 
+    return new Date(dateString).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
     });
   };
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen bg-[#0A0E2A] text-[#0077FF] font-black italic animate-pulse uppercase">
-      Sincronizando...
+      Sincronizando Horários...
     </div>
   );
 
@@ -113,7 +132,7 @@ export default function Predictions() {
 
       {jogos.length === 0 ? (
         <div className="text-center p-20 border-2 border-dashed border-[#1A1C3A] rounded-[40px] max-w-2xl mx-auto">
-          <p className="text-gray-600 font-black uppercase tracking-widest text-[10px] italic">Sem jogos oficiais nesta data</p>
+          <p className="text-gray-600 font-black uppercase tracking-widest text-[10px] italic">Sem jogos para esta data local</p>
         </div>
       ) : (
         <div className="grid gap-6 max-w-2xl mx-auto">
@@ -122,7 +141,7 @@ export default function Predictions() {
               <div className="flex justify-between items-center gap-4">
                 <div className="flex-1 flex flex-col items-center text-center gap-3">
                   <img src={jogo.home?.url_logo} className="w-14 h-14 object-contain" alt="" />
-                  <span className="text-[11px] font-black uppercase leading-tight tracking-tight">{jogo.home?.name}</span>
+                  <span className="text-[11px] font-black uppercase tracking-tight">{jogo.home?.name}</span>
                 </div>
 
                 <div className="flex items-center gap-3 bg-[#0A0E2A] p-4 rounded-[25px] border border-[#26283A]">
@@ -133,11 +152,13 @@ export default function Predictions() {
 
                 <div className="flex-1 flex flex-col items-center text-center gap-3">
                   <img src={jogo.away?.url_logo} className="w-14 h-14 object-contain" alt="" />
-                  <span className="text-[11px] font-black uppercase leading-tight tracking-tight">{jogo.away?.name}</span>
+                  <span className="text-[11px] font-black uppercase tracking-tight">{jogo.away?.name}</span>
                 </div>
               </div>
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-                <span className="text-[10px] font-black text-[#26283A] uppercase tracking-[0.3em] italic">{formatarHoraLocal(jogo.date)}</span>
+                <span className="text-[10px] font-black text-[#B0C4DE] uppercase tracking-[0.3em] italic">
+                   LOCAL: {formatarHoraLocal(jogo.date)}
+                </span>
               </div>
             </div>
           ))}
@@ -148,8 +169,8 @@ export default function Predictions() {
       )}
 
       <style dangerouslySetInnerHTML={{__html: `
-        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
       `}} />
     </div>
   );
