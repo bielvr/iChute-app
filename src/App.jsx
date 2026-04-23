@@ -1,7 +1,8 @@
 import { Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Ligas from './pages/Ligas';
-import Predictions from './pages/Predictions';
+import Predictions from './pages/Predictions'
+import Login from './pages/login';
 
 // Se você já tiver a página de palpites, importe-a aqui também
 // import Predictions from './pages/Predictions';
