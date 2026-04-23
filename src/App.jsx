@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
-import Login from './pages/login';
-import Home from './pages/home';
+import Login from "./pages/Login";
+import Home from "./pages/Home";  
 
 export default function App() {
   const [session, setSession] = useState(null);
