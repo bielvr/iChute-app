@@ -11,7 +11,7 @@ export default function Ligas() {
     async function fetchMinhasLigas() {
       setLoading(true);
       try {
-        // 1. Pega o usuário logado (necessário para filtrar user_league_members)
+        // 1. Pega o usuário logado
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
@@ -20,37 +20,43 @@ export default function Ligas() {
           return;
         }
 
-        // 2. Query seguindo a hierarquia exata do seu print:
-        // user_league_members -> user_leagues -> leagues -> sport_id
+        // 2. Query simplificada para evitar erro de join profundo
+        // Buscamos as ligas que o usuário é membro
         const { data, error } = await supabase
           .from('user_league_members')
           .select(`
-            user_id,
-            user_leagues!inner (
+            user_league_id,
+            user_leagues (
               id,
               name,
               official_league_id,
-              leagues!inner (
+              leagues (
                 sport_id
               )
             )
           `)
-          .eq('user_id', user.id)
-          .eq('user_leagues.leagues.sport_id', esporteId);
+          .eq('user_id', user.id);
 
         if (error) throw error;
 
-        // 3. Mapeia os dados para facilitar o render
+        // 3. Filtro manual no JS (blindado contra erros de tipo String/Number)
         if (data) {
-          const formatadas = data.map(item => ({
-            id: item.user_leagues.id,
-            name: item.user_leagues.name
-          }));
-          setLigas(formatadas);
+          const filtradas = data
+            .filter(item => {
+              // Verifica se a liga existe e se o sport_id bate com o da URL
+              const sId = item.user_leagues?.leagues?.sport_id;
+              return sId?.toString() === esporteId?.toString();
+            })
+            .map(item => ({
+              id: item.user_leagues.id,
+              name: item.user_leagues.name
+            }));
+          
+          setLigas(filtradas);
         }
 
       } catch (err) {
-        console.error("Erro técnico na busca:", err.message);
+        console.error("Erro na busca:", err.message);
       } finally {
         setLoading(false);
       }
@@ -74,7 +80,7 @@ export default function Ligas() {
         {loading ? (
           <div className="flex flex-col items-center gap-2 opacity-50">
             <div className="w-8 h-8 border-4 border-[#0077FF] border-t-transparent rounded-full animate-spin"></div>
-            <p className="font-black italic text-xs uppercase">Buscando no Banco...</p>
+            <p className="font-black italic text-xs uppercase tracking-widest">Buscando...</p>
           </div>
         ) : ligas.length > 0 ? (
           ligas.map((liga) => (
@@ -87,7 +93,7 @@ export default function Ligas() {
                 {liga.name}
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 transition-opacity">ENTRAR</span>
+                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase">Entrar</span>
                 <span className="text-[#0077FF] font-bold">→</span>
               </div>
             </Link>
@@ -95,9 +101,9 @@ export default function Ligas() {
         ) : (
           <div className="text-center p-12 border-2 border-dashed border-[#1A1C3A] rounded-[40px]">
             <p className="text-gray-500 font-black italic uppercase text-sm">Nenhuma liga encontrada</p>
-            <p className="text-gray-600 text-[10px] mt-2 leading-relaxed">
-              VOCÊ PRECISA ESTAR VINCULADO A UMA LIGA DE <br/>
-              {esporteId === '1' ? 'FUTEBOL' : 'HOCKEY'} NA TABELA USER_LEAGUE_MEMBERS.
+            <p className="text-gray-600 text-[10px] mt-2 leading-relaxed uppercase">
+              Verifique se a liga ID 1 no seu banco <br/>
+              está vinculada a um esporte na tabela Leagues.
             </p>
           </div>
         )}
