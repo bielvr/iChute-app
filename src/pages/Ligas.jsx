@@ -11,12 +11,11 @@ export default function Ligas() {
     async function fetchMinhasLigas() {
       setLoading(true);
       try {
-        // 1. Pega o usuário logado
+        // 1. Pega o usuário logado (User ID: 2 no seu caso)
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 2. Busca simplificada: pega as ligas do usuário e os dados da liga oficial
-        // Sem tentar fazer o join triplo que está quebrando
+        // 2. Busca as participações do usuário com os dados da liga e o sport_id oficial
         const { data, error } = await supabase
           .from('user_league_members')
           .select(`
@@ -25,7 +24,6 @@ export default function Ligas() {
               name,
               official_league_id,
               leagues (
-                id,
                 sport_id
               )
             )
@@ -35,20 +33,22 @@ export default function Ligas() {
         if (error) throw error;
 
         if (data) {
-          // 3. Filtro manual no JavaScript para garantir que não escape nada
-          // Comparamos o sport_id da tabela 'leagues' com o esporteId da URL
+          // 3. Filtro manual: Compara o sport_id da liga oficial com o da URL
+          // Se a URL for /ligas/2 (Hockey), ele busca sport_id 2 no banco
           const filtradas = data
             .filter(item => {
-              const ligaOficial = item.user_leagues?.leagues;
-              // Forçamos ambos a virarem String para evitar erro de tipo (2 vs "2")
-              return String(ligaOficial?.sport_id) === String(esporteId);
+              const sId = item.user_leagues?.leagues?.sport_id;
+              return String(sId) === String(esporteId);
             })
-            .map(item => item.user_leagues);
+            .map(item => ({
+              id: item.user_leagues.id,
+              name: item.user_leagues.name
+            }));
           
           setLigas(filtradas);
         }
       } catch (err) {
-        console.error("Erro técnico:", err.message);
+        console.error("Erro ao carregar ligas:", err.message);
       } finally {
         setLoading(false);
       }
@@ -70,9 +70,8 @@ export default function Ligas() {
 
       <div className="grid gap-4 max-w-lg mx-auto">
         {loading ? (
-          <div className="text-center py-10">
-            <div className="w-8 h-8 border-4 border-[#0077FF] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="font-black italic opacity-50 uppercase text-xs">Sincronizando iChute...</p>
+          <div className="text-center py-10 opacity-50 font-black italic uppercase text-xs animate-pulse">
+            Sincronizando com o banco...
           </div>
         ) : ligas.length > 0 ? (
           ligas.map((liga) => (
@@ -81,9 +80,11 @@ export default function Ligas() {
               to={`/palpites/${liga.id}`}
               className="bg-[#1A1C3A] border border-[#26283A] p-6 rounded-[30px] flex justify-between items-center hover:border-[#0077FF] hover:bg-[#1e2145] transition-all group"
             >
-              <span className="font-black italic uppercase group-hover:text-[#0077FF] transition-colors">{liga.name}</span>
+              <span className="font-black italic uppercase group-hover:text-[#0077FF] transition-colors">
+                {liga.name}
+              </span>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase">Entrar</span>
+                <span className="text-[10px] font-black opacity-30 group-hover:opacity-100 uppercase transition-opacity">Entrar</span>
                 <span className="text-[#0077FF] font-bold">→</span>
               </div>
             </Link>
@@ -92,8 +93,8 @@ export default function Ligas() {
           <div className="text-center p-12 border-2 border-dashed border-[#1A1C3A] rounded-[40px]">
             <p className="text-gray-500 font-black italic uppercase text-sm">Nenhuma liga encontrada</p>
             <p className="text-gray-600 text-[10px] mt-4 leading-relaxed uppercase">
-              ID de Esporte Selecionado: {esporteId} <br/>
-              Verifique se na tabela "leagues", o sport_id da liga 14 é "2".
+              Verifique se a liga "{esporteId === '2' ? 'Dedo no gelo e gritaria' : 'Palpitômetro'}" <br/>
+              está vinculada ao esporte correto no banco de dados.
             </p>
           </div>
         )}
