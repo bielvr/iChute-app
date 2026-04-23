@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "../supabaseClient";
 
 export default function Login() {
-  const [isSignUp, setIsSignUp] = useState(false); // Alterna entre Login e Cadastro
+  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,8 +20,23 @@ export default function Login() {
     if (error) {
       setMessage("Erro: " + error.message);
     } else if (isSignUp) {
-      setMessage("Cadastro realizado! Se habilitou confirmação, cheque o e-mail.");
+      setMessage("Cadastro realizado! Verifique seu e-mail.");
     }
+    setLoading(false);
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setMessage("Erro: Digite seu e-mail primeiro.");
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    
+    if (error) setMessage("Erro: " + error.message);
+    else setMessage("Link de recuperação enviado para o e-mail!");
     setLoading(false);
   };
 
@@ -31,41 +46,24 @@ export default function Login() {
         <h1 className="text-4xl font-black italic text-[#0077FF] text-center uppercase mb-8">iCHUTE</h1>
         
         <div className="flex bg-[#0A0E2A] rounded-2xl p-1 mb-8 border border-[#26283A]">
-          <button 
-            onClick={() => setIsSignUp(false)}
-            className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${!isSignUp ? 'bg-[#0077FF] text-white' : 'text-gray-500'}`}
-          >Entrar</button>
-          <button 
-            onClick={() => setIsSignUp(true)}
-            className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${isSignUp ? 'bg-[#0077FF] text-white' : 'text-gray-500'}`}
-          >Cadastrar</button>
+          <button onClick={() => setIsSignUp(false)} className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${!isSignUp ? 'bg-[#0077FF]' : 'text-gray-500'}`}>Entrar</button>
+          <button onClick={() => setIsSignUp(true)} className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${isSignUp ? 'bg-[#0077FF]' : 'text-gray-500'}`}>Cadastrar</button>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
-          <input
-            type="email"
-            placeholder="E-mail"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none focus:ring-2 focus:ring-[#0077FF]"
-            required
-          />
-          <input
-            type="password"
-            placeholder="Senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none focus:ring-2 focus:ring-[#0077FF]"
-            required
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#0077FF] py-4 rounded-2xl font-black italic text-lg uppercase shadow-lg disabled:opacity-50"
-          >
+          <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none focus:ring-2 focus:ring-[#0077FF]" required />
+          <input type="password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none focus:ring-2 focus:ring-[#0077FF]" required />
+          
+          <button type="submit" disabled={loading} className="w-full bg-[#0077FF] py-4 rounded-2xl font-black italic text-lg uppercase shadow-lg disabled:opacity-50">
             {loading ? "Processando..." : isSignUp ? "Criar Conta" : "Entrar"}
           </button>
         </form>
+
+        {!isSignUp && (
+          <button onClick={handleForgotPassword} className="w-full mt-4 text-[10px] font-black uppercase italic text-gray-500 hover:text-[#0077FF] transition-all">
+            Esqueci minha senha
+          </button>
+        )}
 
         {message && <p className="mt-4 text-center text-[10px] font-black uppercase italic text-[#0077FF]">{message}</p>}
       </div>

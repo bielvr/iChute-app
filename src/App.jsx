@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import Login from "./pages/Login";
-import Home from "./pages/Home";  
+import Home from "./pages/Home"; 
+import ResetPassword from "./pages/ResetPassword"; 
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -38,7 +39,9 @@ export default function App() {
           path="/" 
           element={session ? <Home /> : <Navigate to="/login" replace />} 
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} 
+        />
+         <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     </BrowserRouter>
   );
