@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Predictions from './pages/Predictions'; 
 import Ranking from './pages/Ranking';
 import Comparison from './pages/Comparison';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
   const [session, setSession] = useState(undefined);
@@ -24,6 +25,7 @@ function App() {
     <Routes>
       <Route path="/" element={session ? <Navigate to="/home" replace /> : <Login />} />
       <Route path="/home" element={session ? <Home /> : <Navigate to="/" replace />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       
       {/* Rota que a sua Home chama (seleção de esporte) */}
       <Route path="/leagues/:sportId" element={session ? <Ligas /> : <Navigate to="/" replace />} />
