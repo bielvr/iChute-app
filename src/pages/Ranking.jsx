@@ -10,7 +10,7 @@ export default function Ranking() {
   useEffect(() => {
     async function getRanking() {
       // Aqui usamos a view que você já tem no banco (ajuste o nome se necessário)
-      const { data } = await supabase.from('view_ranking_geral')
+      const { data } = await supabase.from('ranking_detalhado')
         .select('*').eq('user_league_id', ligaId).order('total_points', { ascending: false });
       setRanking(data || []);
     }

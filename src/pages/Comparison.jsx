@@ -9,13 +9,13 @@ export default function Comparison() {
   const [loading, setLoading] = useState(true);
   const [usuarios, setUsuarios] = useState([]);
   const [jogos, setJogos] = useState([]);
-  const [palpitesMatriz, setPalpitesMatriz] = useState({}); // { matchId: { userId: { home, away, points } } }
+  const [palpitesMatriz, setPalpitesMatriz] = useState({});
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        // 1. Pegar membros da liga (baseado na sua tabela de membros/users)
+        // 1. Membros da liga
         const { data: membros } = await supabase
           .from('user_leagues_members')
           .select('user_id, users(name)')
@@ -24,35 +24,37 @@ export default function Comparison() {
         const listaUsers = membros?.map(m => ({ id: m.user_id, name: m.users.name })) || [];
         setUsuarios(listaUsers);
 
-        // 2. Pegar os jogos da liga oficial vinculada
+        // 2. Info da liga e Jogos (LTE agora = iniciados ou terminados)
         const { data: ligaInfo } = await supabase
           .from('user_leagues')
           .select('official_league_id')
           .eq('id', ligaId)
           .single();
 
+        const agora = new Date().toISOString();
+
         const { data: matches } = await supabase
           .from('matches')
           .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
           .eq('league_id', ligaInfo.official_league_id)
-          .order('date', { ascending: false }); // Mostrar os mais recentes/futuros primeiro
+          .lte('date', agora)
+          .order('date', { ascending: false });
         
         setJogos(matches || []);
 
-        // 3. Buscar TODOS os palpites desta liga específica
+        // 3. Buscar palpites (Confiando na coluna points_earned do banco)
         const { data: allPreds } = await supabase
           .from('predictions')
           .select('*')
           .eq('user_league_id', ligaId);
 
-        // Transformar em matriz para busca rápida: matriz[jogoId][userId]
         const matriz = {};
         allPreds?.forEach(p => {
           if (!matriz[p.match_id]) matriz[p.match_id] = {};
           matriz[p.match_id][p.user_id] = {
             home: p.prediction_home,
             away: p.prediction_away,
-            points: p.points_earned
+            points: p.points_earned ?? 0
           };
         });
         setPalpitesMatriz(matriz);
@@ -66,75 +68,110 @@ export default function Comparison() {
     loadData();
   }, [ligaId]);
 
-  if (loading) return <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center font-black italic text-[#0077FF] animate-pulse uppercase">Comparando resultados...</div>;
+  // Lógica de cores baseada na sua paleta e nos pontos vindos do banco
+  const getPointTheme = (pts) => {
+    if (pts >= 3) return { 
+      bg: "bg-[#0077FF]", 
+      text: "text-white", 
+      border: "border-[#0077FF]",
+      label: "CRAVOU" 
+    };
+    if (pts === 2) return { 
+      bg: "bg-[#0077FF]/40", 
+      text: "text-[#0077FF]", 
+      border: "border-[#0077FF]/50",
+      label: "MEIO CHEIO" 
+    };
+    if (pts === 1) return { 
+      bg: "bg-[#1A1C3A]", 
+      text: "text-white/70", 
+      border: "border-[#26283A]",
+      label: "VENCEDOR" 
+    };
+    return { 
+      bg: "bg-[#0A0E2A]", 
+      text: "text-white/20", 
+      border: "border-transparent",
+      label: "ERROU" 
+    };
+  };
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center">
+      <div className="text-[#0077FF] font-black italic animate-pulse tracking-tighter">PROCESSANDO RANKINGS...</div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-32 font-sans">
-      <header className="max-w-4xl mx-auto flex justify-between items-center mb-8">
-        <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-4 py-2 rounded-xl text-[10px] font-black border border-[#26283A]">← VOLTAR</button>
-        <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter">Comparativo</h1>
+    <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans">
+      <header className="max-w-2xl mx-auto flex justify-between items-center mb-10">
+        <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic transition-all hover:bg-[#0077FF]">
+          ← VOLTAR
+        </button>
+        <div className="text-right">
+          <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter leading-none">iCHUTE</h1>
+          <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Liga</span>
+        </div>
       </header>
 
-      <div className="max-w-5xl mx-auto overflow-x-auto no-scrollbar shadow-2xl rounded-[30px] border border-[#26283A]">
-        <table className="w-full text-left bg-[#1A1C3A] border-collapse">
-          <thead>
-            <tr className="bg-[#0A0E2A]">
-              <th className="p-5 text-[10px] font-black uppercase opacity-40 sticky left-0 bg-[#0A0E2A] z-10">Confronto</th>
-              {usuarios.map(u => (
-                <th key={u.id} className="p-5 text-[10px] font-black uppercase text-[#0077FF] text-center border-l border-[#26283A] min-w-[100px]">
-                  {u.name.split(' ')[0]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {jogos.map(jogo => (
-              <tr key={jogo.id} className="border-t border-[#26283A] hover:bg-[#26283A]/30 transition-colors">
-                <td className="p-5 sticky left-0 bg-[#1A1C3A] z-10 shadow-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="flex flex-col items-center">
-                      <img src={jogo.home?.url_logo} className="w-6 h-6 object-contain" alt="" />
-                      <span className="text-[12px] font-black mt-1">{jogo.home_score ?? '-'}</span>
+      <div className="max-w-2xl mx-auto grid gap-6">
+        {jogos.map((jogo) => (
+          <div key={jogo.id} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px] shadow-2xl">
+            {/* Cabeçalho do Card: Placar Real */}
+            <div className="flex justify-between items-center mb-6 px-2 bg-[#0A0E2A]/30 p-4 rounded-[20px]">
+              <div className="flex flex-col items-center w-1/3">
+                <img src={jogo.home?.url_logo} className="w-10 h-10 object-contain mb-2" alt="" />
+                <span className="text-[9px] font-black uppercase text-center text-white/50">{jogo.home?.name}</span>
+              </div>
+
+              <div className="flex flex-col items-center">
+                <div className="flex items-center gap-4">
+                  <span className="text-3xl font-black italic">{jogo.home_score ?? '-'}</span>
+                  <span className="text-[#0077FF] font-black italic opacity-30 text-lg">X</span>
+                  <span className="text-3xl font-black italic">{jogo.away_score ?? '-'}</span>
+                </div>
+                {jogo.status === 'FINISHED' && (
+                  <span className="text-[7px] font-black bg-white/5 px-3 py-1 rounded-full text-white/40 uppercase mt-2 tracking-widest italic">Encerrado</span>
+                )}
+              </div>
+
+              <div className="flex flex-col items-center w-1/3">
+                <img src={jogo.away?.url_logo} className="w-10 h-10 object-contain mb-2" alt="" />
+                <span className="text-[9px] font-black uppercase text-center text-white/50">{jogo.away?.name}</span>
+              </div>
+            </div>
+
+            {/* Listagem de Palpites da Galera */}
+            <div className="space-y-1.5 px-1">
+              {usuarios.map((u) => {
+                const p = palpitesMatriz[jogo.id]?.[u.id];
+                const pts = p?.points || 0;
+                const theme = getPointTheme(pts);
+                
+                return (
+                  <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border transition-all ${theme.border} ${pts >= 3 ? 'bg-[#0077FF]/10' : 'bg-[#0A0E2A]/40'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase italic text-white/40">{u.name.split(' ')[0]}</span>
                     </div>
-                    <span className="text-[10px] opacity-20 font-black">X</span>
-                    <div className="flex flex-col items-center">
-                      <img src={jogo.away?.url_logo} className="w-6 h-6 object-contain" alt="" />
-                      <span className="text-[12px] font-black mt-1">{jogo.away_score ?? '-'}</span>
+                    
+                    <div className="flex items-center gap-3">
+                      <span className={`font-black italic text-sm ${pts >= 2 ? 'text-white' : 'text-white/40'}`}>
+                        {p ? `${p.home} x ${p.away}` : '-- x --'}
+                      </span>
+                      
+                      <div className={`min-w-[55px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic uppercase ${theme.bg} ${theme.text}`}>
+                        {pts > 0 ? `+${pts} PTS` : '0 PTS'}
+                      </div>
                     </div>
                   </div>
-                </td>
-
-                {usuarios.map(u => {
-                  const p = palpitesMatriz[jogo.id]?.[u.id];
-                  const cravou = p && jogo.status === 'FINISHED' && p.home === jogo.home_score && p.away === jogo.away_score;
-                  
-                  return (
-                    <td key={u.id} className={`p-5 text-center border-l border-[#26283A] ${cravou ? 'bg-[#0077FF]/10' : ''}`}>
-                      {p ? (
-                        <div className="flex flex-col items-center gap-1">
-                          <span className={`text-sm font-black italic ${cravou ? 'text-[#0077FF]' : 'text-white'}`}>
-                            {p.home}x{p.away}
-                          </span>
-                          {p.points > 0 && (
-                            <span className="bg-[#0077FF] text-white text-[8px] px-2 py-0.5 rounded-full font-black">
-                              +{p.points} PTS
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-[10px] opacity-10 font-black italic">N/A</span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <BottomNav />
-      <style dangerouslySetInnerHTML={{__html: `.no-scrollbar::-webkit-scrollbar { display: none; }`}} />
     </div>
   );
 }
