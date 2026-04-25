@@ -23,7 +23,7 @@ export default function Comparison() {
       setLoading(true);
       
       try {
-        // 1. Buscar membros (Corrigido para user_league_members)
+        // 1. Buscar membros da liga (Tabela: user_league_members)
         const { data: membros, error: errMembros } = await supabase
           .from('user_league_members')
           .select('user_id, users(name)')
@@ -32,7 +32,7 @@ export default function Comparison() {
         if (errMembros) throw errMembros;
         setUsuarios(membros?.map(m => ({ id: m.user_id, name: m.users?.name || 'Usuário' })) || []);
 
-        // 2. Info da Liga e Sport (Corrigido para leagues)
+        // 2. Info da Liga e Sport (Tabela: user_leagues relacionando com leagues)
         const { data: ligaInfo, error: errLiga } = await supabase
           .from('user_leagues')
           .select(`
@@ -47,31 +47,40 @@ export default function Comparison() {
         const sId = ligaInfo.leagues?.sport_id;
         setSportId(sId);
 
-        // 3. Buscar Jogos (LTE agora = iniciados ou terminados)
+        // 3. Buscar Jogos (Tabela: matches)
         const agora = new Date().toISOString();
         const { data: matches, error: errMatches } = await supabase
           .from('matches')
           .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
           .eq('league_id', ligaInfo.official_league_id)
-          .lte('date', agora)
+          .lte('date', agora) // Apenas jogos que já começaram ou passaram
           .order('date', { ascending: true });
 
         if (errMatches) throw errMatches;
-        const listaJogos = matches || [];
-        setJogos(listaJogos);
 
-        // 4. Lógica de Abas (Soccer vs NHL)
-        if (sId === 2) { // NHL (Datas)
-          const datasUnicas = [...new Set(listaJogos.map(m => m.date.split('T')[0]))].sort();
+        // --- LÓGICA DE FUSO HORÁRIO E ABAS ---
+        const listaProcessada = (matches || []).map(jogo => ({
+          ...jogo,
+          // Cria uma chave de data (AAAA-MM-DD) baseada no fuso horário LOCAL do navegador
+          localDateKey: new Date(jogo.date).toLocaleDateString('sv-SE') 
+        }));
+        
+        setJogos(listaProcessada);
+
+        if (sId === 2) { // NHL (Agrupamento por Datas Locais)
+          const datasUnicas = [...new Set(listaProcessada.map(j => j.localDateKey))].sort();
           setTabs(datasUnicas);
-          setActiveTab(datasUnicas[datasUnicas.length - 1]);
-        } else { // Futebol (Rodadas)
-          const rodadas = [...new Set(listaJogos.map(m => m.round))].sort((a, b) => b - a);
+          
+          // Tenta focar no dia de hoje (local) ou na última data com jogos
+          const hojeLocal = new Date().toLocaleDateString('sv-SE');
+          setActiveTab(datasUnicas.includes(hojeLocal) ? hojeLocal : datasUnicas[datasUnicas.length - 1]);
+        } else { // Futebol (Agrupamento por Rodadas)
+          const rodadas = [...new Set(listaProcessada.map(m => m.round))].sort((a, b) => b - a);
           setTabs(rodadas);
           setActiveTab(rodadas[0]);
         }
 
-        // 5. Buscar Palpites
+        // 4. Buscar Palpites (Tabela: predictions)
         const { data: allPreds } = await supabase
           .from('predictions')
           .select('*')
@@ -97,7 +106,7 @@ export default function Comparison() {
     loadData();
   }, [ligaId]);
 
-  // Scroll automático para o final na NHL
+  // Scroll automático para o final nas abas de data (NHL)
   useEffect(() => {
     if (sportId === 2 && scrollRef.current) {
       scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
@@ -110,13 +119,14 @@ export default function Comparison() {
     return { bg: "bg-[#0A0E2A]", text: "text-white/20", border: "border-transparent" };
   };
 
+  // Filtragem final dos jogos baseada na aba ativa
   const jogosFiltrados = jogos.filter(j => 
-    sportId === 2 ? j.date.startsWith(activeTab) : j.round === activeTab
+    sportId === 2 ? j.localDateKey === activeTab : j.round === activeTab
   );
 
   if (loading) return (
     <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center">
-      <div className="text-[#0077FF] font-black italic animate-pulse">CARREGANDO DADOS...</div>
+      <div className="text-[#0077FF] font-black italic animate-pulse tracking-widest">SINCRONIZANDO...</div>
     </div>
   );
 
@@ -128,11 +138,11 @@ export default function Comparison() {
         </button>
         <div className="text-right">
           <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter leading-none">iCHUTE</h1>
-          <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Resultados</span>
+          <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Liga</span>
         </div>
       </header>
 
-      {/* Seleção de Rodada/Data */}
+      {/* Seletor de Rodada ou Data */}
       <div className="max-w-2xl mx-auto mb-8 overflow-hidden">
         <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
           {tabs.map((tab) => (
@@ -143,7 +153,10 @@ export default function Comparison() {
                 activeTab === tab ? 'bg-[#0077FF] border-[#0077FF] text-white' : 'bg-[#1A1C3A] border-[#26283A] text-white/30'
               }`}
             >
-              {sportId === 2 ? new Date(tab + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) : `${tab}ª RODADA`}
+              {sportId === 2 
+                ? new Date(tab + 'T12:00:00').toLocaleDateString(undefined, {day:'2-digit', month:'2-digit'}) 
+                : `${tab}ª RODADA`
+              }
             </button>
           ))}
         </div>
@@ -151,16 +164,16 @@ export default function Comparison() {
 
       <div className="max-w-2xl mx-auto grid gap-6">
         {jogosFiltrados.length === 0 && (
-          <div className="text-center py-20 text-white/10 font-black italic uppercase">Nenhum resultado disponível</div>
+          <div className="text-center py-20 text-white/10 font-black italic uppercase tracking-widest">Nenhum resultado nesta rodada</div>
         )}
 
         {jogosFiltrados.map((jogo) => (
           <div key={jogo.id} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px]">
-            {/* Placar Real - Usando goals_home/away do schema */}
+            {/* Placar Real (Tabela matches: goals_home / goals_away) */}
             <div className="flex justify-between items-center mb-6 bg-[#0A0E2A]/50 p-4 rounded-[20px]">
               <div className="flex flex-col items-center w-1/3">
                 <img src={jogo.home?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
-                <span className="text-[8px] font-black uppercase text-white/40">{jogo.home?.name}</span>
+                <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.home?.name}</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-3xl font-black italic">{jogo.goals_home ?? '-'}</span>
@@ -169,11 +182,11 @@ export default function Comparison() {
               </div>
               <div className="flex flex-col items-center w-1/3">
                 <img src={jogo.away?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
-                <span className="text-[8px] font-black uppercase text-white/40">{jogo.away?.name}</span>
+                <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.away?.name}</span>
               </div>
             </div>
 
-            {/* Lista de Palpites da Liga */}
+            {/* Lista de Palpites dos Amigos */}
             <div className="grid gap-2">
               {usuarios.map((u) => {
                 const p = palpitesMatriz[jogo.id]?.[u.id];
@@ -186,7 +199,7 @@ export default function Comparison() {
                       <span className={`font-black italic text-xs ${p ? 'text-white' : 'text-white/20'}`}>
                         {p ? `${p.home} x ${p.away}` : '-- x --'}
                       </span>
-                      <div className={`min-w-[50px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic ${theme.bg} ${theme.text}`}>
+                      <div className={`min-w-[55px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic ${theme.bg} ${theme.text}`}>
                         {pts} PTS
                       </div>
                     </div>
