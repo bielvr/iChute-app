@@ -1,216 +1,298 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 
-export default function Comparison() {
+export default function Predictions() {
   const { ligaId } = useParams();
   const navigate = useNavigate();
-  const scrollRef = useRef(null);
 
-  const [loading, setLoading] = useState(true);
-  const [usuarios, setUsuarios] = useState([]);
+  // Estados de Dados
   const [jogos, setJogos] = useState([]);
-  const [palpitesMatriz, setPalpitesMatriz] = useState({});
-  const [sportId, setSportId] = useState(null);
+  const [palpites, setPalpites] = useState({});
+  const [ligaNome, setLigaNome] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [numericUserId, setNumericUserId] = useState(null);
   
-  const [tabs, setTabs] = useState([]); 
-  const [activeTab, setActiveTab] = useState(null);
+  // Lógica Híbrida
+  const [isFootball, setIsFootball] = useState(false);
+  const [officialLeagueId, setOfficialLeagueId] = useState(null);
+  const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
+  const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
+  const [listaRodadas, setListaRodadas] = useState([]);
 
+  const proximosDias = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return d.toLocaleDateString('en-CA');
+  });
+
+  // 1. Efeito de Inicialização (Identifica Esporte e define a Rodada "Viva")
   useEffect(() => {
-    async function loadData() {
-      if (!ligaId) return;
+    async function initPage() {
+      if (!ligaId || ligaId === "undefined") return;
       setLoading(true);
-      
       try {
-        // 1. Buscar membros da liga (Tabela: user_league_members)
-        const { data: membros, error: errMembros } = await supabase
-          .from('user_league_members')
-          .select('user_id, users(name)')
-          .eq('user_league_id', ligaId);
-        
-        if (errMembros) throw errMembros;
-        setUsuarios(membros?.map(m => ({ id: m.user_id, name: m.users?.name || 'Usuário' })) || []);
+        // Pega ID numérico do usuário
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: userData } = await supabase.from('users').select('id').eq('email', user?.email).single();
+        setNumericUserId(userData?.id);
 
-        // 2. Info da Liga e Sport (Tabela: user_leagues relacionando com leagues)
-        const { data: ligaInfo, error: errLiga } = await supabase
+        // Pega info da liga e esporte
+        const { data: infoLiga } = await supabase
           .from('user_leagues')
-          .select(`
-            official_league_id,
-            leagues:official_league_id (sport_id)
-          `)
+          .select(`name, official_league_id, leagues (sport_id)`)
           .eq('id', ligaId)
           .single();
 
-        if (errLiga || !ligaInfo) throw new Error("Liga não encontrada");
-
-        const sId = ligaInfo.leagues?.sport_id;
-        setSportId(sId);
-
-        // 3. Buscar Jogos (Tabela: matches)
-        const agora = new Date().toISOString();
-        const { data: matches, error: errMatches } = await supabase
-          .from('matches')
-          .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
-          .eq('league_id', ligaInfo.official_league_id)
-          .lte('date', agora) // Apenas jogos que já começaram ou passaram
-          .order('date', { ascending: true });
-
-        if (errMatches) throw errMatches;
-
-        // --- LÓGICA DE FUSO HORÁRIO E ABAS ---
-        const listaProcessada = (matches || []).map(jogo => ({
-          ...jogo,
-          // Cria uma chave de data (AAAA-MM-DD) baseada no fuso horário LOCAL do navegador
-          localDateKey: new Date(jogo.date).toLocaleDateString('sv-SE') 
-        }));
+        setLigaNome(infoLiga.name);
+        setOfficialLeagueId(infoLiga.official_league_id);
         
-        setJogos(listaProcessada);
+        const football = infoLiga.leagues.sport_id === 1; // Ajuste o ID conforme seu banco
+        setIsFootball(football);
 
-        if (sId === 2) { // NHL (Agrupamento por Datas Locais)
-          const datasUnicas = [...new Set(listaProcessada.map(j => j.localDateKey))].sort();
-          setTabs(datasUnicas);
+        if (football) {
+          // Busca todas as rodadas existentes para popular o select
+          const { data: rounds } = await supabase.from('matches')
+            .select('round')
+            .eq('league_id', infoLiga.official_league_id)
+            .order('round', { ascending: true });
           
-          // Tenta focar no dia de hoje (local) ou na última data com jogos
-          const hojeLocal = new Date().toLocaleDateString('sv-SE');
-          setActiveTab(datasUnicas.includes(hojeLocal) ? hojeLocal : datasUnicas[datasUnicas.length - 1]);
-        } else { // Futebol (Agrupamento por Rodadas)
-          const rodadas = [...new Set(listaProcessada.map(m => m.round))].sort((a, b) => b - a);
-          setTabs(rodadas);
-          setActiveTab(rodadas[0]);
+          const uniqueRounds = [...new Set(rounds?.map(r => r.round))];
+          setListaRodadas(uniqueRounds);
+
+          // LÓGICA DE RODADA INTELIGENTE
+          // Busca o primeiro jogo que ainda vai acontecer (data >= agora)
+          const now = new Date().toISOString();
+          const { data: currentMatch } = await supabase.from('matches')
+            .select('round')
+            .eq('league_id', infoLiga.official_league_id)
+            .gte('date', now)
+            .order('date', { ascending: true })
+            .limit(1)
+            .single();
+          
+          // Se não houver jogos futuros, pega a rodada do último jogo cadastrado
+          let targetRound = currentMatch?.round;
+          if (!targetRound) {
+            const { data: lastMatch } = await supabase.from('matches')
+              .select('round')
+              .eq('league_id', infoLiga.official_league_id)
+              .order('date', { ascending: false })
+              .limit(1)
+              .single();
+            targetRound = lastMatch?.round || uniqueRounds[0];
+          }
+
+          setRodadaSelecionada(targetRound);
+          fetchMatches(infoLiga.official_league_id, true, targetRound, userData?.id);
+        } else {
+          // Esportes por data (ex: NHL)
+          fetchMatches(infoLiga.official_league_id, false, dataSelecionada, userData?.id);
         }
-
-        // 4. Buscar Palpites (Tabela: predictions)
-        const { data: allPreds } = await supabase
-          .from('predictions')
-          .select('*')
-          .eq('user_league_id', ligaId);
-
-        const matriz = {};
-        allPreds?.forEach(p => {
-          if (!matriz[p.match_id]) matriz[p.match_id] = {};
-          matriz[p.match_id][p.user_id] = {
-            home: p.prediction_home,
-            away: p.prediction_away,
-            points: p.points_earned ?? 0
-          };
-        });
-        setPalpitesMatriz(matriz);
-
       } catch (err) {
-        console.error("Erro no carregamento:", err.message);
-      } finally {
-        setLoading(false);
+        console.error("Erro init iChute:", err.message);
       }
     }
-    loadData();
+    initPage();
   }, [ligaId]);
 
-  // Scroll automático para o final nas abas de data (NHL)
-  useEffect(() => {
-    if (sportId === 2 && scrollRef.current) {
-      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
-    }
-  }, [tabs, sportId]);
+  // 2. Motor de Busca de Jogos e Palpites Existentes
+  async function fetchMatches(offId, footballMode, filterValue, uId) {
+    setLoading(true);
+    try {
+      let query = supabase.from('matches')
+        .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
+        .eq('league_id', offId);
 
-  const getPointTheme = (pts) => {
-    if (pts >= 3) return { bg: "bg-[#0077FF]", text: "text-white", border: "border-[#0077FF]" };
-    if (pts === 2) return { bg: "bg-[#0077FF]/40", text: "text-[#0077FF]", border: "border-[#0077FF]/50" };
-    return { bg: "bg-[#0A0E2A]", text: "text-white/20", border: "border-transparent" };
+      if (footballMode) {
+        query = query.eq('round', filterValue);
+      } else {
+        const inicio = new Date(`${filterValue}T00:00:00Z`);
+        const fim = new Date(inicio); 
+        fim.setHours(fim.getHours() + 36);
+        query = query.gte('date', inicio.toISOString()).lte('date', fim.toISOString());
+      }
+
+      const { data: matchesData } = await query.order('date', { ascending: true });
+      
+      const filtrados = footballMode ? matchesData : (matchesData || []).filter(j => 
+        new Date(j.date).toLocaleDateString('en-CA') === filterValue
+      );
+      setJogos(filtrados);
+
+      // Carrega palpites já salvos para preencher os inputs
+      if (uId && filtrados.length > 0) {
+        const { data: existingPreds } = await supabase.from('predictions')
+          .select('*')
+          .eq('user_id', uId)
+          .eq('user_league_id', ligaId)
+          .in('match_id', filtrados.map(j => j.id));
+
+        const map = {};
+        existingPreds?.forEach(p => {
+          map[p.match_id] = { home: p.prediction_home, away: p.prediction_away };
+        });
+        setPalpites(map);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // 3. Handlers
+  const handleInputChange = (matchId, side, value) => {
+    setPalpites(prev => ({
+      ...prev,
+      [matchId]: { ...prev[matchId], [side]: value === "" ? "" : parseInt(value) }
+    }));
   };
 
-  // Filtragem final dos jogos baseada na aba ativa
-  const jogosFiltrados = jogos.filter(j => 
-    sportId === 2 ? j.localDateKey === activeTab : j.round === activeTab
-  );
+  const handleConfirmar = async () => {
+    if (!numericUserId) return alert("Erro: Usuário não identificado");
+    setSaving(true);
+    const payloads = Object.keys(palpites).map(matchId => ({
+      user_id: numericUserId,
+      match_id: parseInt(matchId),
+      user_league_id: parseInt(ligaId),
+      prediction_home: palpites[matchId].home ?? 0,
+      prediction_away: palpites[matchId].away ?? 0,
+      points_earned: 0
+    }));
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center">
-      <div className="text-[#0077FF] font-black italic animate-pulse tracking-widest">SINCRONIZANDO...</div>
-    </div>
-  );
+    try {
+      const { error } = await supabase.from('predictions')
+        .upsert(payloads, { onConflict: 'user_id,match_id,user_league_id' });
+      if (error) throw error;
+      alert("PALPITES REGISTRADOS! ⚡");
+    } catch (err) {
+      alert("Erro ao salvar: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Formatação de Data e Hora para o Rodapé do Card
+  const formatarDataHora = (dateString) => {
+    const dataObj = new Date(dateString);
+    const hora = dataObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    
+    if (isFootball) {
+      const dia = dataObj.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+      return `${dia} - ${hora}`; // Retorna "25/04 - 15:30"
+    }
+    return hora;
+  };
+
+  if (loading && !jogos.length) {
+    return <div className="min-h-screen bg-[#0A0E2A] text-[#0077FF] flex items-center justify-center font-black animate-pulse">SINCRONIZANDO...</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans">
-      <header className="max-w-2xl mx-auto flex justify-between items-center mb-6">
-        <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic transition-all hover:bg-[#0077FF]">
-          ← VOLTAR
-        </button>
-        <div className="text-right">
-          <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter leading-none">iCHUTE</h1>
-          <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Liga</span>
+    <div className="min-h-screen bg-[#0A0E2A] text-white p-4 font-sans pb-40">
+      <header className="max-w-2xl mx-auto mb-8">
+        <div className="flex items-center justify-between mb-8">
+          <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]">← VOLTAR</button>
+          <div className="text-right">
+            <h1 className="text-xl font-black italic text-[#0077FF] uppercase">iCHUTE</h1>
+            <span className="text-white block text-sm opacity-80">{ligaNome}</span>
+          </div>
         </div>
+
+        {isFootball ? (
+          <select 
+            value={rodadaSelecionada} 
+            onChange={(e) => { 
+              setRodadaSelecionada(e.target.value); 
+              fetchMatches(officialLeagueId, true, e.target.value, numericUserId); 
+            }}
+            className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none"
+          >
+            {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
+          </select>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+            {proximosDias.map((data) => (
+              <button 
+                key={data} 
+                onClick={() => { setDataSelecionada(data); fetchMatches(officialLeagueId, false, data, numericUserId); }}
+                className={`flex-shrink-0 px-6 py-4 rounded-[20px] font-black text-xs uppercase italic border ${data === dataSelecionada ? 'bg-[#0077FF] text-white border-[#0077FF]' : 'bg-[#1A1C3A] text-gray-400 border-[#26283A]'}`}
+              >
+                {data === new Date().toLocaleDateString('en-CA') ? 'HOJE' : data.split('-').reverse().slice(0,2).join('/')}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
-      {/* Seletor de Rodada ou Data */}
-      <div className="max-w-2xl mx-auto mb-8 overflow-hidden">
-        <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-shrink-0 px-5 py-2.5 rounded-xl font-black italic text-[10px] border transition-all ${
-                activeTab === tab ? 'bg-[#0077FF] border-[#0077FF] text-white' : 'bg-[#1A1C3A] border-[#26283A] text-white/30'
-              }`}
-            >
-              {sportId === 2 
-                ? new Date(tab + 'T12:00:00').toLocaleDateString(undefined, {day:'2-digit', month:'2-digit'}) 
-                : `${tab}ª RODADA`
-              }
-            </button>
-          ))}
-        </div>
-      </div>
+      <div className="grid gap-6 max-w-2xl mx-auto">
+        {jogos.length === 0 ? (
+          <p className="text-center p-10 opacity-30 font-black italic uppercase">Sem jogos para este filtro</p>
+        ) : (
+          jogos.map((jogo) => (
+            <div key={jogo.id} className="relative bg-[#1A1C3A] border border-[#26283A] p-8 rounded-[35px] shadow-2xl">
+              <div className="flex justify-between items-center gap-4">
+                {/* Time Mandante */}
+                <div className="flex-1 flex flex-col items-center text-center gap-3">
+                  <img src={jogo.home?.url_logo} className="w-14 h-14 object-contain" alt={jogo.home?.name} />
+                  <span className="text-[11px] font-black uppercase tracking-tight">{jogo.home?.name}</span>
+                </div>
 
-      <div className="max-w-2xl mx-auto grid gap-6">
-        {jogosFiltrados.length === 0 && (
-          <div className="text-center py-20 text-white/10 font-black italic uppercase tracking-widest">Nenhum resultado nesta rodada</div>
+                {/* Placar / Inputs */}
+                <div className="flex items-center gap-3 bg-[#0A0E2A] p-4 rounded-[25px] border border-[#26283A]">
+                  <input 
+                    type="number" 
+                    value={palpites[jogo.id]?.home ?? ""} 
+                    onChange={(e) => handleInputChange(jogo.id, 'home', e.target.value)}
+                    className="w-16 h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-3xl text-[#0077FF] focus:ring-2 focus:ring-[#0077FF] outline-none" 
+                    placeholder="0" 
+                  />
+                  <span className="text-[#26283A] font-black italic text-2xl">X</span>
+                  <input 
+                    type="number" 
+                    value={palpites[jogo.id]?.away ?? ""} 
+                    onChange={(e) => handleInputChange(jogo.id, 'away', e.target.value)}
+                    className="w-16 h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-3xl text-[#0077FF] focus:ring-2 focus:ring-[#0077FF] outline-none" 
+                    placeholder="0" 
+                  />
+                </div>
+
+                {/* Time Visitante */}
+                <div className="flex-1 flex flex-col items-center text-center gap-3">
+                  <img src={jogo.away?.url_logo} className="w-14 h-14 object-contain" alt={jogo.away?.name} />
+                  <span className="text-[11px] font-black uppercase tracking-tight">{jogo.away?.name}</span>
+                </div>
+              </div>
+
+              {/* Informações de Data/Hora no rodapé do card */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-black text-[#B0C4DE] opacity-40 uppercase italic whitespace-nowrap">
+                {formatarDataHora(jogo.date)}
+              </div>
+            </div>
+          ))
         )}
 
-        {jogosFiltrados.map((jogo) => (
-          <div key={jogo.id} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px]">
-            {/* Placar Real (Tabela matches: goals_home / goals_away) */}
-            <div className="flex justify-between items-center mb-6 bg-[#0A0E2A]/50 p-4 rounded-[20px]">
-              <div className="flex flex-col items-center w-1/3">
-                <img src={jogo.home?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
-                <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.home?.name}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-3xl font-black italic">{jogo.goals_home ?? '-'}</span>
-                <span className="text-[#0077FF] font-black italic opacity-30">X</span>
-                <span className="text-3xl font-black italic">{jogo.goals_away ?? '-'}</span>
-              </div>
-              <div className="flex flex-col items-center w-1/3">
-                <img src={jogo.away?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
-                <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.away?.name}</span>
-              </div>
-            </div>
-
-            {/* Lista de Palpites dos Amigos */}
-            <div className="grid gap-2">
-              {usuarios.map((u) => {
-                const p = palpitesMatriz[jogo.id]?.[u.id];
-                const pts = p?.points || 0;
-                const theme = getPointTheme(pts);
-                return (
-                  <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border ${theme.border} bg-[#0A0E2A]/40`}>
-                    <span className="text-[9px] font-black uppercase italic text-white/50">{u.name.split(' ')[0]}</span>
-                    <div className="flex items-center gap-3">
-                      <span className={`font-black italic text-xs ${p ? 'text-white' : 'text-white/20'}`}>
-                        {p ? `${p.home} x ${p.away}` : '-- x --'}
-                      </span>
-                      <div className={`min-w-[55px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic ${theme.bg} ${theme.text}`}>
-                        {pts} PTS
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+        {/* Botão de Confirmar Fixo */}
+        <button 
+          onClick={handleConfirmar} 
+          disabled={saving}
+          className={`fixed bottom-24 left-1/2 -translate-x-1/2 w-[90%] max-w-xl font-black py-6 rounded-[25px] uppercase italic text-xl z-40 shadow-2xl transition-all active:scale-95 ${saving ? 'bg-gray-700 cursor-not-allowed' : 'bg-[#0077FF] hover:bg-[#0066DD]'}`}
+        >
+          {saving ? 'GRAVANDO...' : 'CONFIRMAR PALPITES'}
+        </button>
       </div>
+
       <BottomNav />
+      
+      {/* CSS para esconder setas do input number e scrollbar */}
+      <style dangerouslySetInnerHTML={{__html: `
+        input::-webkit-outer-spin-button, 
+        input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } 
+        input[type=number] { -moz-appearance: textfield; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
     </div>
   );
 }
