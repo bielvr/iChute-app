@@ -6,7 +6,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState(""); // 1. Novo estado para o nome
+  const [fullName, setFullName] = useState(""); 
   const [message, setMessage] = useState("");
 
   const handleAuth = async (e) => {
@@ -19,7 +19,7 @@ export default function Login() {
           email, 
           password,
           options: {
-            data: { full_name: fullName } // 2. Enviando o nome para o Auth do Supabase
+            data: { full_name: fullName }
           }
         })
       : await supabase.auth.signInWithPassword({ email, password });
@@ -32,7 +32,21 @@ export default function Login() {
     setLoading(false);
   };
 
-  // ... (manter handleForgotPassword igual)
+  // ESSA É A FUNÇÃO QUE TINHA SUMIDO:
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setMessage("Erro: Digite seu e-mail primeiro.");
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    
+    if (error) setMessage("Erro: " + error.message);
+    else setMessage("Link de recuperação enviado para o e-mail!");
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center p-4 font-sans text-white">
@@ -40,12 +54,11 @@ export default function Login() {
         <h1 className="text-4xl font-black italic text-[#0077FF] text-center uppercase mb-8">iCHUTE</h1>
         
         <div className="flex bg-[#0A0E2A] rounded-2xl p-1 mb-8 border border-[#26283A]">
-          <button onClick={() => setIsSignUp(false)} className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${!isSignUp ? 'bg-[#0077FF]' : 'text-gray-500'}`}>Entrar</button>
-          <button onClick={() => setIsSignUp(true)} className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${isSignUp ? 'bg-[#0077FF]' : 'text-gray-500'}`}>Cadastrar</button>
+          <button type="button" onClick={() => setIsSignUp(false)} className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${!isSignUp ? 'bg-[#0077FF]' : 'text-gray-500'}`}>Entrar</button>
+          <button type="button" onClick={() => setIsSignUp(true)} className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${isSignUp ? 'bg-[#0077FF]' : 'text-gray-500'}`}>Cadastrar</button>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {/* 3. Campo de Nome condicional (só aparece no cadastro) */}
           {isSignUp && (
             <input 
               type="text" 
@@ -66,7 +79,7 @@ export default function Login() {
         </form>
 
         {!isSignUp && (
-          <button onClick={handleForgotPassword} className="w-full mt-4 text-[10px] font-black uppercase italic text-gray-500 hover:text-[#0077FF] transition-all">
+          <button type="button" onClick={handleForgotPassword} className="w-full mt-4 text-[10px] font-black uppercase italic text-gray-500 hover:text-[#0077FF] transition-all">
             Esqueci minha senha
           </button>
         )}
