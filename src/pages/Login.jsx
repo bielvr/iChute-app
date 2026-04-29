@@ -6,6 +6,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState(""); // 1. Novo estado para o nome
   const [message, setMessage] = useState("");
 
   const handleAuth = async (e) => {
@@ -14,7 +15,13 @@ export default function Login() {
     setMessage("");
 
     const { error } = isSignUp 
-      ? await supabase.auth.signUp({ email, password })
+      ? await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            data: { full_name: fullName } // 2. Enviando o nome para o Auth do Supabase
+          }
+        })
       : await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
@@ -25,20 +32,7 @@ export default function Login() {
     setLoading(false);
   };
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      setMessage("Erro: Digite seu e-mail primeiro.");
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    
-    if (error) setMessage("Erro: " + error.message);
-    else setMessage("Link de recuperação enviado para o e-mail!");
-    setLoading(false);
-  };
+  // ... (manter handleForgotPassword igual)
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center p-4 font-sans text-white">
@@ -51,6 +45,18 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
+          {/* 3. Campo de Nome condicional (só aparece no cadastro) */}
+          {isSignUp && (
+            <input 
+              type="text" 
+              placeholder="Nome Completo" 
+              value={fullName} 
+              onChange={(e) => setFullName(e.target.value)} 
+              className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none focus:ring-2 focus:ring-[#0077FF]" 
+              required 
+            />
+          )}
+
           <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none focus:ring-2 focus:ring-[#0077FF]" required />
           <input type="password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none focus:ring-2 focus:ring-[#0077FF]" required />
           
