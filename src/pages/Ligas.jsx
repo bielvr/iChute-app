@@ -199,9 +199,6 @@ export default function Ligas() {
 
         {/* CRIAR NOVA LIGA */}
         <section className="bg-[#1A1C3A] p-8 rounded-[40px] border border-[#26283A] shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-            <span className="font-black italic text-4xl uppercase">{nomeEsporte}</span>
-          </div>
           
           <h2 className="text-center font-black italic uppercase text-[#0077FF] mb-6">Criar Nova Liga</h2>
           
