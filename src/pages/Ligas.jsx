@@ -25,10 +25,16 @@ export default function Ligas() {
       const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
       if (!userData) return;
 
-      // 1. Ligas do Usuário
+      // 1. Ligas Ativas
       const { data: participacoes } = await supabase
         .from('user_league_members')
-        .select(`user_league_id, user_leagues ( id, name, official_league_id, leagues!official_league_id ( sport_id ) )`)
+        .select(`
+          user_league_id,
+          user_leagues (
+            id, name, official_league_id,
+            leagues!official_league_id ( sport_id )
+          )
+        `)
         .eq('user_id', userData.id);
 
       if (participacoes) {
@@ -38,18 +44,16 @@ export default function Ligas() {
         setLigasAtivas(filtradas);
       }
 
-      // 2. BUSCA NHL/LIGAS REAIS - Ajustado para ser mais flexível
-      const { data: reais, error: errReais } = await supabase
+      // 2. BUSCA NHL (Ajustado: removido o filtro NEQ que bloqueava o NULL)
+      const { data: reais } = await supabase
         .from('leagues')
-        .select('id, name, api_id')
-        .eq('sport_id', sportId); // Filtra apenas pelo esporte, removemos o neq('EMPTY') para testar
+        .select('id, name')
+        .eq('sport_id', sportId);
       
-      // Filtramos no JS para garantir que nulos ou "EMPTY" não apareçam, mas a NHL sim
-      const reaisFiltradas = reais?.filter(r => r.api_id && r.api_id !== 'EMPTY') || [];
-      setLigasReaisDisponiveis(reaisFiltradas);
+      setLigasReaisDisponiveis(reais || []);
 
     } catch (err) {
-      console.error("Erro iChute:", err.message);
+      console.error("Erro:", err.message);
     } finally {
       setLoading(false);
     }
@@ -57,11 +61,8 @@ export default function Ligas() {
 
   useEffect(() => { fetchData(); }, [sportId]);
 
-  // Funções handleJoinLeague e handleCreateLeague permanecem as mesmas...
-  // (Mantendo o foco no visual dos inputs que você pediu)
-
   const handleJoinLeague = async () => {
-    if (!inviteCodeInput) return alert("Digite o código da liga!");
+    if (!inviteCodeInput) return alert("Digite o código!");
     setProcessing(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -86,10 +87,7 @@ export default function Ligas() {
         winner_only_points: points.winnerOnly
       }).select().single();
       const { data: league } = await supabase.from('user_leagues').insert({
-        name: newLeagueName,
-        owner_id: userData.id,
-        config_id: config.id,
-        official_league_id: selectedOfficialLeague
+        name: newLeagueName, owner_id: userData.id, config_id: config.id, official_league_id: selectedOfficialLeague
       }).select().single();
       await supabase.from('user_league_members').insert({ user_league_id: league.id, user_id: userData.id, role: 'admin' });
       setNewLeagueName("");
@@ -99,17 +97,26 @@ export default function Ligas() {
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-6 font-sans pb-20">
-      {/* Cabeçalho omitido para brevidade... */}
+      {/* HEADER COM BOTÃO VOLTAR REPOSTO */}
+      <header className="mb-10 mt-4 flex items-center gap-4 max-w-lg mx-auto">
+        <Link to="/home" className="bg-[#1A1C3A] px-4 py-2 rounded-xl text-[10px] font-black italic border border-[#26283A] hover:text-[#0077FF]">
+          ← VOLTAR
+        </Link>
+        <h1 className="text-2xl font-black italic uppercase tracking-tighter">
+          Ligas <span className="text-[#0077FF]">{nomeEsporte}</span>
+        </h1>
+      </header>
 
+      {/* LISTA ATIVAS */}
       <div className="grid gap-4 max-w-lg mx-auto mb-12">
-        <h2 className="text-xs font-black italic uppercase opacity-40 ml-2 text-center">Suas Ligas Ativas</h2>
+        <h2 className="text-xs font-black italic uppercase opacity-40 ml-2">Suas Ligas Ativas</h2>
         {ligasAtivas.map((liga) => (
           <div key={liga.id} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px] flex justify-between items-center group shadow-lg">
             <div>
               <span className="block font-black italic uppercase group-hover:text-[#0077FF] transition-all">{liga.name}</span>
-              <span className="text-[9px] font-bold opacity-40 uppercase tracking-widest">Código: <span className="text-[#0077FF]">{liga.id}</span></span>
+              <span className="text-[9px] font-bold opacity-40 uppercase">CÓDIGO: <span className="text-[#0077FF]">{liga.id}</span></span>
             </div>
-            <Link to={`/predictions/${liga.id}`} className="bg-[#0A0E2A] p-3 rounded-full hover:scale-110 transition-transform">
+            <Link to={`/predictions/${liga.id}`} className="bg-[#0A0E2A] p-3 rounded-full border border-[#26283A] hover:scale-110 transition-transform">
               <span className="text-[#0077FF] font-bold">→</span>
             </Link>
           </div>
@@ -117,46 +124,7 @@ export default function Ligas() {
       </div>
 
       <div className="max-w-lg mx-auto space-y-6">
-        <section className="bg-[#1A1C3A] p-8 rounded-[40px] border border-[#26283A] shadow-2xl">
-          <h2 className="text-center font-black italic uppercase text-[#0077FF] mb-6">Criar Nova Liga</h2>
-          
-          <div className="space-y-4">
-            <input type="text" placeholder="NOME DA LIGA" value={newLeagueName} onChange={(e) => setNewLeagueName(e.target.value)}
-              className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none text-center" />
-            
-            <select value={selectedOfficialLeague} onChange={(e) => setSelectedOfficialLeague(e.target.value)}
-              className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none text-center appearance-none text-gray-400">
-              <option value="">VINCULAR À LIGA REAL...</option>
-              {ligasReaisDisponiveis.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-
-            {/* PONTUAÇÃO SEM SETINHAS E CENTRALIZADA */}
-            <div className="grid grid-cols-3 gap-2 py-4 border-y border-[#26283A]">
-              {[
-                { label: 'Placar Exato', key: 'exact' },
-                { label: 'Venc +1 Gol', key: 'winnerOne' },
-                { label: 'Só Vencedor', key: 'winnerOnly' }
-              ].map((item) => (
-                <div key={item.key} className="text-center">
-                  <p className="text-[7px] font-black uppercase mb-2 opacity-50 tracking-tighter">{item.label}</p>
-                  <input 
-                    type="number" 
-                    value={points[item.key]} 
-                    onChange={e => setPoints({...points, [item.key]: e.target.value})}
-                    style={{ MozAppearance: 'textfield' }} // Remove setinhas no Firefox
-                    className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-xl p-3 text-center font-black text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                  />
-                </div>
-              ))}
-            </div>
-
-            <button onClick={handleCreateLeague} disabled={processing} className="w-full bg-[#0077FF] py-4 rounded-2xl font-black italic text-lg uppercase shadow-lg active:scale-95 transition-all">
-              {processing ? "CRIANDO..." : "GERAR LIGA E CÓDIGO"}
-            </button>
-          </div>
-        </section>
-
-        {/* INPUT DE CÓDIGO TAMBÉM CENTRALIZADO */}
+        {/* ENTRAR EM LIGA */}
         <div className="bg-[#1A1C3A] p-6 rounded-[35px] border border-[#26283A] flex gap-3 items-center">
           <input 
             type="number" 
@@ -169,6 +137,44 @@ export default function Ligas() {
             Entrar em Liga
           </button>
         </div>
+
+        {/* CRIAR NOVA LIGA */}
+        <section className="bg-[#1A1C3A] p-8 rounded-[40px] border border-[#26283A] shadow-2xl">
+          <h2 className="text-center font-black italic uppercase text-[#0077FF] mb-6">Criar Nova Liga</h2>
+          <div className="space-y-4">
+            <input type="text" placeholder="NOME DA LIGA" value={newLeagueName} onChange={(e) => setNewLeagueName(e.target.value)}
+              className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none text-center" />
+            
+            <select value={selectedOfficialLeague} onChange={(e) => setSelectedOfficialLeague(e.target.value)}
+              className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 font-bold outline-none text-center text-gray-400 appearance-none">
+              <option value="">VINCULAR À LIGA REAL...</option>
+              {ligasReaisDisponiveis.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+
+            {/* PONTUAÇÃO CENTRALIZADA E SEM SETAS */}
+            <div className="grid grid-cols-3 gap-2 py-4 border-y border-[#26283A]">
+              {[
+                { label: 'Placar Exato', key: 'exact' },
+                { label: 'Venc +1 Gol', key: 'winnerOne' },
+                { label: 'Só Vencedor', key: 'winnerOnly' }
+              ].map((item) => (
+                <div key={item.key} className="text-center">
+                  <p className="text-[7px] font-black uppercase mb-2 opacity-50">{item.label}</p>
+                  <input 
+                    type="number" 
+                    value={points[item.key]} 
+                    onChange={e => setPoints({...points, [item.key]: e.target.value})}
+                    className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-xl p-3 text-center font-black text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button onClick={handleCreateLeague} disabled={processing} className="w-full bg-[#0077FF] py-4 rounded-2xl font-black italic text-lg uppercase shadow-lg active:scale-95 transition-all">
+              {processing ? "CRIANDO..." : "GERAR LIGA E CÓDIGO"}
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   );
