@@ -114,9 +114,9 @@ export default function Comparison() {
   }, [tabs, sportId]);
 
   const getPointTheme = (pts) => {
-    if (pts >= 3) return { bg: "bg-[#39FF14]", text: "text-white", border: "border-[#39FF14]" };
-    if (pts === 2) return { bg: "bg-[#FAFF00]/40", text: "text-white", border: "border-[#FAFF00]/50" };
-    if (pts === 1) return { bg: "bg-[#0077FF]/40", text: "text-white", border: "border-[#0077FF]/50" };
+    if (pts >= 3) return { bg: "bg-[#39FF14]", text: "text-[F0F8FF]", border: "border-[#39FF14]" };
+    if (pts === 2) return { bg: "bg-[#FAFF00]/40", text: "text-[B0C4DE]", border: "border-[#FAFF00]/50" };
+    if (pts === 1) return { bg: "bg-[#0077FF]/40", text: "text-[F0F8FF]", border: "border-[#0077FF]/50" };
     return { bg: "bg-[#0A0E2A]", text: "text-white/20", border: "border-transparent" };
   };
 
