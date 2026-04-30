@@ -8,7 +8,7 @@ export default function BottomNav() {
 
   const tabs = [
     { id: 'results', label: 'Resultados', icon: LayoutGrid, path: `/leagues/${ligaId}/results` },
-    { id: 'predictions', label: 'Palpites', icon: PenLine, path: `/leagues/predictions/${ligaId}` },
+    { id: 'predictions', label: 'Palpites', icon: PenLine, path: `/predictions/${ligaId}` },
     { id: 'ranking', label: 'Ranking', icon: Trophy, path: `/leagues/${ligaId}/ranking` },
     { id: 'whatif', label: 'E se?', icon: HelpCircle, path: `/leagues/${ligaId}/whatif` },
   ];
