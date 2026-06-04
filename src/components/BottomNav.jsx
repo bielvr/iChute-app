@@ -14,16 +14,20 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1C3A] border-t border-[#26283A] flex justify-around items-center pb-6 pt-3 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1C3A] border-t border-[#26283A] flex justify-around items-center h-20 px-2 z-50">
       {tabs.map((tab) => {
-        const isActive = location.pathname === tab.path || (tab.id === 'predictions' && location.pathname.endsWith(ligaId));
+        // Validação dinâmica: verifica se a URL atual contém ou termina com o padrão da aba
+        const isActive = location.pathname === tab.path || 
+                        (tab.id === 'predictions' && location.pathname.startsWith(`/predictions/${ligaId}`)) ||
+                        (tab.id === 'whatif' && location.pathname.endsWith('/whatif'));
+                        
         const Icon = tab.icon;
-        
+
         return (
           <button
             key={tab.id}
             onClick={() => navigate(tab.path)}
-            className={`flex flex-col items-center gap-1 transition-all ${isActive ? 'text-[#0077FF]' : 'text-gray-500'}`}
+            className={`flex flex-col items-center gap-1 transition-all min-w-[64px] ${isActive ? 'text-[#0077FF]' : 'text-gray-500'}`}
           >
             <Icon size={24} strokeWidth={isActive ? 3 : 2} />
             <span className="text-[10px] font-black uppercase italic tracking-tighter">

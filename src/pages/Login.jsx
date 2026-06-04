@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../supabaseClient";
+import Logo from "../components/Logo"; // Importação do componente da Logo
 
 export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -32,7 +33,6 @@ export default function Login() {
     setLoading(false);
   };
 
-  // ESSA É A FUNÇÃO QUE TINHA SUMIDO:
   const handleForgotPassword = async () => {
     if (!email) {
       setMessage("Erro: Digite seu e-mail primeiro.");
@@ -51,7 +51,11 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center p-4 font-sans text-white">
       <div className="w-full max-w-md bg-[#1A1C3A] border border-[#26283A] p-8 rounded-[40px] shadow-2xl">
-        <h1 className="text-4xl font-black italic text-[#0077FF] text-center uppercase mb-8">iCHUTE</h1>
+        
+        {/* CABEÇALHO COM A LOGO PREMIUM INTEGRADA */}
+        <div className="flex justify-center mb-8">
+          <Logo size="lg" showText={true} />
+        </div>
         
         <div className="flex bg-[#0A0E2A] rounded-2xl p-1 mb-8 border border-[#26283A]">
           <button type="button" onClick={() => setIsSignUp(false)} className={`flex-1 py-2 rounded-xl font-black italic text-xs uppercase transition-all ${!isSignUp ? 'bg-[#0077FF]' : 'text-gray-500'}`}>Entrar</button>

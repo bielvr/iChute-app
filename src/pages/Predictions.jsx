@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
+import Logo from '../components/Logo';
 
 export default function Predictions() {
   const { ligaId } = useParams();
@@ -14,10 +15,12 @@ export default function Predictions() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [numericUserId, setNumericUserId] = useState(null);
+  const [isOwner, setIsOwner] = useState(false); // Controle de acesso às configurações
   
-  // Lógica Híbrida
+  // Lógica Híbrida e Temporada Dinâmica
   const [isFootball, setIsFootball] = useState(false);
   const [officialLeagueId, setOfficialLeagueId] = useState(null);
+  const [temporadaAtiva, setTemporadaAtiva] = useState('');
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
   const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
   const [listaRodadas, setListaRodadas] = useState([]);
@@ -39,20 +42,37 @@ export default function Predictions() {
 
         const { data: infoLiga } = await supabase
           .from('user_leagues')
-          .select(`name, official_league_id, leagues (sport_id)`)
+          .select(`name, owner_id, official_league_id, leagues (sport_id)`)
           .eq('id', ligaId)
           .single();
 
         setLigaNome(infoLiga.name);
         setOfficialLeagueId(infoLiga.official_league_id);
         
+        // Valida se o usuário atual é dono da liga
+        if (userData?.id && infoLiga.owner_id === userData.id) {
+          setIsOwner(true);
+        }
+        
         const football = infoLiga.leagues.sport_id === 1; 
         setIsFootball(football);
+
+        // SACADA DA TEMPORADA DINÂMICA: Descobre a última cadastrada para este esporte/liga
+        const { data: maxSeasonData } = await supabase
+          .from('matches')
+          .select('season')
+          .eq('league_id', infoLiga.official_league_id)
+          .order('season', { ascending: false })
+          .limit(1);
+        
+        const ultimaTemporada = maxSeasonData && maxSeasonData.length > 0 ? maxSeasonData[0].season : new Date().getFullYear().toString();
+        setTemporadaAtiva(ultimaTemporada);
 
         if (football) {
           const { data: rounds } = await supabase.from('matches')
             .select('round')
             .eq('league_id', infoLiga.official_league_id)
+            .eq('season', ultimaTemporada)
             .order('round', { ascending: true });
           
           const uniqueRounds = [...new Set(rounds?.map(r => r.round))];
@@ -62,26 +82,28 @@ export default function Predictions() {
           const { data: currentMatch } = await supabase.from('matches')
             .select('round')
             .eq('league_id', infoLiga.official_league_id)
+            .eq('season', ultimaTemporada)
             .gte('date', now)
             .order('date', { ascending: true })
             .limit(1)
-            .single();
+            .maybeSingle();
           
           let targetRound = currentMatch?.round;
           if (!targetRound) {
             const { data: lastMatch } = await supabase.from('matches')
               .select('round')
               .eq('league_id', infoLiga.official_league_id)
+              .eq('season', ultimaTemporada)
               .order('date', { ascending: false })
               .limit(1)
-              .single();
+              .maybeSingle();
             targetRound = lastMatch?.round || uniqueRounds[0];
           }
 
           setRodadaSelecionada(targetRound);
-          fetchMatches(infoLiga.official_league_id, true, targetRound, userData?.id);
+          fetchMatches(infoLiga.official_league_id, ultimaTemporada, true, targetRound, userData?.id);
         } else {
-          fetchMatches(infoLiga.official_league_id, false, dataSelecionada, userData?.id);
+          fetchMatches(infoLiga.official_league_id, ultimaTemporada, false, dataSelecionada, userData?.id);
         }
       } catch (err) {
         console.error("Erro init iChute:", err.message);
@@ -90,12 +112,13 @@ export default function Predictions() {
     initPage();
   }, [ligaId]);
 
-  async function fetchMatches(offId, footballMode, filterValue, uId) {
+  async function fetchMatches(offId, seasonStr, footballMode, filterValue, uId) {
     setLoading(true);
     try {
       let query = supabase.from('matches')
         .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
-        .eq('league_id', offId);
+        .eq('league_id', offId)
+        .eq('season', seasonStr); // Filtrando estritamente pela temporada detectada ou selecionada
 
       if (footballMode) {
         query = query.eq('round', filterValue);
@@ -182,9 +205,20 @@ export default function Predictions() {
       <header className="max-w-2xl mx-auto mb-8">
         <div className="flex items-center justify-between mb-8">
           <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]">← VOLTAR</button>
-          <div className="text-right">
-            <h1 className="text-xl font-black italic text-[#0077FF] uppercase">iCHUTE</h1>
-            <span className="text-white block text-sm opacity-80">{ligaNome}</span>
+          
+          <div className="flex items-center gap-3 text-right">
+            {isOwner && (
+              <Link 
+                to={`/league-settings/${ligaId}`} 
+                className="bg-[#1A1C3A] border border-[#26283A] text-gray-400 hover:text-[#0077FF] hover:border-[#0077FF] p-2.5 rounded-xl text-[10px] font-black uppercase italic transition-all mr-1"
+              >
+                ⚙️ CONFIGS
+              </Link>
+            )}
+            <div>
+              <Logo size="sm" />
+              <span className="text-white block text-sm opacity-80">{ligaNome}</span>
+            </div>
           </div>
         </div>
 
@@ -193,7 +227,7 @@ export default function Predictions() {
             value={rodadaSelecionada} 
             onChange={(e) => { 
               setRodadaSelecionada(e.target.value); 
-              fetchMatches(officialLeagueId, true, e.target.value, numericUserId); 
+              fetchMatches(officialLeagueId, temporadaAtiva, true, e.target.value, numericUserId); 
             }}
             className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none"
           >
@@ -204,7 +238,7 @@ export default function Predictions() {
             {proximosDias.map((data) => (
               <button 
                 key={data} 
-                onClick={() => { setDataSelecionada(data); fetchMatches(officialLeagueId, false, data, numericUserId); }}
+                onClick={() => { setDataSelecionada(data); fetchMatches(officialLeagueId, temporadaAtiva, false, data, numericUserId); }}
                 className={`flex-shrink-0 px-6 py-4 rounded-[20px] font-black text-xs uppercase italic border ${data === dataSelecionada ? 'bg-[#0077FF] text-white border-[#0077FF]' : 'bg-[#1A1C3A] text-gray-400 border-[#26283A]'}`}
               >
                 {data === new Date().toLocaleDateString('en-CA') ? 'HOJE' : data.split('-').reverse().slice(0,2).join('/')}
@@ -227,7 +261,7 @@ export default function Predictions() {
                   <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-tight">{jogo.home?.name}</span>
                 </div>
 
-                {/* Placar / Inputs - Ajustado para não quebrar em telas pequenas */}
+                {/* Placar / Inputs */}
                 <div className="flex items-center gap-1 sm:gap-3 bg-[#0A0E2A] p-2 sm:p-4 rounded-[25px] border border-[#26283A]">
                   <input 
                     type="number" 

@@ -2,122 +2,301 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
+import Logo from '../components/Logo';
 
 export default function Ranking() {
   const { ligaId } = useParams();
   const navigate = useNavigate();
-  const [ranking, setRanking] = useState([]);
+  
+  // Estados de navegação e controle
+  const [activeTab, setActiveTab] = useState('liga'); // 'liga' ou 'global'
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
+  
+  // Estados - Ranking da Liga
+  const [rankingLiga, setRankingLiga] = useState([]);
+  const [temporadasDisponiveis, setTemporadasDisponiveis] = useState([]);
+  const [temporadaSelecionada, setTemporadaSelecionada] = useState("");
+
+  // Estados - Ranking Global
+  const [rankingGlobal, setRankingGlobal] = useState([]);
 
   useEffect(() => {
-    async function getRankingData() {
+    async function fetchInitialSetup() {
       if (!ligaId) return;
       setLoading(true);
-      
       try {
-        // 1. Pega o ID do usuário que está acessando o app
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) setCurrentUserId(user.id);
-
-        // 2. Busca o ranking detalhado da view
-        const { data, error } = await supabase
-          .from('ranking_detalhado')
-          .select('*')
-          .eq('user_league_id', ligaId)
-          .order('total_points', { ascending: false });
-
-        if (!error) {
-          setRanking(data || []);
+        if (user) {
+          // Busca o ID numérico do usuário
+          const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
+          if (userData) setCurrentUserId(userData.id);
         }
+
+        // Pega as temporadas disponíveis para a liga atual
+        const { data: userLeagueInfo } = await supabase
+          .from('user_leagues')
+          .select('official_league_id')
+          .eq('id', ligaId)
+          .single();
+
+        if (userLeagueInfo) {
+          const { data: seasonsData } = await supabase
+            .from('matches')
+            .select('season')
+            .eq('league_id', userLeagueInfo.official_league_id)
+            .order('season', { ascending: false });
+          
+          const uniqueSeasons = [...new Set(seasonsData?.map(m => m.season))];
+          setTemporadasDisponiveis(uniqueSeasons);
+          
+          if (uniqueSeasons.length > 0) {
+            setTemporadaSelecionada(uniqueSeasons[0]);
+            await getRankingLigaData(uniqueSeasons[0]);
+          }
+        }
+        
+        // Já engatilha o carregamento do Ranking Global em background
+        await getRankingGlobalData();
+
       } catch (err) {
-        console.error("Erro ao carregar ranking:", err);
+        console.error("Erro no setup do ranking:", err);
       } finally {
         setLoading(false);
       }
     }
-    getRankingData();
+    fetchInitialSetup();
   }, [ligaId]);
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center">
-      <div className="text-[#0077FF] font-black italic animate-pulse uppercase tracking-widest">Sincronizando Ranking...</div>
-    </div>
-  );
+  // 1. Carrega os dados da Liga de Amigos (Ordenado por Pontuação Customizada)
+  async function getRankingLigaData(seasonStr) {
+    const { data } = await supabase
+      .from('ranking_detalhado')
+      .select('*')
+      .eq('user_league_id', ligaId)
+      .order('total_points', { ascending: false });
+
+    if (data) setRankingLiga(data);
+  }
+
+  // 2. Lógica do RANKING GLOBAL (Baseado estritamente em critérios de acertos)
+  async function getRankingGlobalData() {
+    try {
+      // Buscamos os palpites cruzados com os jogos finalizados do sistema inteiro
+      const { data: allPredictions, error } = await supabase
+        .from('predictions')
+        .select(`
+          user_id,
+          prediction_home,
+          prediction_away,
+          users ( name ),
+          matches!inner ( goals_home, goals_away, status )
+        `)
+        .eq('matches.status', 'FT'); // Apenas jogos encerrados de verdade
+
+      if (error) throw error;
+
+      const userStats = {};
+
+      allPredictions?.forEach(p => {
+        const uId = p.user_id;
+        if (!uId || !p.users) return;
+
+        if (!userStats[uId]) {
+          userStats[uId] = {
+            user_id: uId,
+            user_name: p.users.name,
+            cravadas: 0,
+            acertoGols: 0,
+            acertoW: 0,
+            total_jogos: 0
+          };
+        }
+
+        const stat = userStats[uId];
+        stat.total_jogos += 1;
+
+        const realH = p.matches.goals_home;
+        const realA = p.matches.goals_away;
+        const palpH = p.prediction_home;
+        const pAway = p.prediction_away;
+
+        // Regra de validação pura
+        if (realH === palpH && realA === pAway) {
+          stat.cravadas += 1;
+          stat.acertoGols += 1;
+          stat.acertoW += 1;
+        } else {
+          const venceuHomeReal = realH > realA;
+          const venceuAwayReal = realA > realH;
+          const empateReal = realH === realA;
+
+          const venceuHomePalp = palpH > pAway;
+          const venceuAwayPalp = pAway > palpH;
+          const empatePalp = palpH === pAway;
+
+          if ((venceuHomeReal && venceuHomePalp) || (venceuAwayReal && venceuAwayPalp) || (empateReal && empatePalp)) {
+            stat.acertoW += 1;
+          }
+          if (realH === palpH) stat.acertoGols += 1;
+          if (realA === pAway) stat.acertoGols += 1;
+        }
+      });
+
+      // Transforma em array e ordena pelos pesos oficiais de eficiência: 
+      // 1º Cravadas -> 2º Acerto de Tendência (W) -> 3º Gols Isolados
+      const sortedGlobal = Object.values(userStats).sort((a, b) => 
+        b.cravadas - a.cravadas || b.acertoW - a.acertoW || b.acertoGols - a.acertoGols
+      );
+
+      setRankingGlobal(sortedGlobal);
+    } catch (err) {
+      console.error("Erro ao computar ranking global:", err);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans">
-      <header className="max-w-2xl mx-auto flex justify-between items-center mb-8">
+      <header className="max-w-2xl mx-auto flex justify-between items-center mb-6">
         <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic transition-all hover:bg-[#0077FF]">
           ← VOLTAR
         </button>
         <div className="text-right">
-          <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter leading-none">iCHUTE</h1>
-          <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Posicionamento na Liga</span>
+          <Logo size="sm" />
+          <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Líderes de Palpites</span>
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto grid gap-4">
-        {ranking.map((user, index) => {
-          // O destaque agora é para o usuário logado, não necessariamente o 1º lugar
-          const isCurrentUser = String(user.user_id) === String(currentUserId);
+      {/* SELETOR DE ABAS (TABS) */}
+      <div className="max-w-2xl mx-auto grid grid-cols-2 gap-2 mb-6 bg-[#1A1C3A] p-1.5 rounded-2xl border border-[#26283A]">
+        <button 
+          onClick={() => setActiveTab('liga')}
+          className={`py-3 rounded-xl font-black text-xs uppercase italic tracking-tight transition-all ${activeTab === 'liga' ? 'bg-[#0077FF] text-white' : 'text-gray-400'}`}
+        >
+          🏆 Ranking da Liga
+        </button>
+        <button 
+          onClick={() => setActiveTab('global')}
+          className={`py-3 rounded-xl font-black text-xs uppercase italic tracking-tight transition-all ${activeTab === 'global' ? 'bg-[#0077FF] text-white' : 'text-gray-400'}`}
+        >
+          🌍 Geral do Aplicativo
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-20 text-[#0077FF] font-black animate-pulse text-xs uppercase tracking-widest">Sincronizando Quadros...</div>
+      ) : (
+        <div className="max-w-2xl mx-auto grid gap-4">
           
-          return (
-            <div 
-              key={user.user_id} 
-              className={`relative overflow-hidden p-5 rounded-[30px] border transition-all duration-300 ${
-                isCurrentUser 
-                  ? 'bg-[#0077FF] border-white shadow-[0_0_25px_rgba(0,119,255,0.5)] scale-[1.02] z-10' 
-                  : 'bg-[#1A1C3A] border-[#26283A] opacity-90'
-              }`}
-            >
-              {/* Topo: Posição, Nome e Pontos */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <span className={`font-black italic text-2xl ${isCurrentUser ? 'text-white' : 'text-[#0077FF]'} opacity-40`}>
-                    {index + 1}º
-                  </span>
-                  <div className="flex flex-col">
-                    <span className="font-black uppercase text-sm tracking-tighter italic leading-none">
-                      {user.user_name}
-                    </span>
-                    {isCurrentUser && (
-                      <span className="text-[7px] font-black uppercase text-white/60 tracking-widest mt-1">VOCÊ</span>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="block font-black text-3xl italic leading-none">{user.total_points}</span>
-                  <span className={`text-[8px] font-black uppercase ${isCurrentUser ? 'text-white/70' : 'text-[#0077FF]'}`}>PONTOS</span>
-                </div>
+          {/* RENDER DA TAB: RANKING DA LIGA */}
+          {activeTab === 'liga' && (
+            <>
+              <div className="mb-2">
+                <select 
+                  value={temporadaSelecionada}
+                  onChange={(e) => { setTemporadaSelecionada(e.target.value); getRankingLigaData(e.target.value); }}
+                  className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-xs text-white focus:outline-none"
+                >
+                  {temporadasDisponiveis.map(temp => <option key={temp} value={temp}>TEMPORADA {temp}</option>)}
+                </select>
               </div>
 
-              {/* Grid de Stats da View ranking_detalhado */}
-              <div className={`grid grid-cols-4 gap-2 pt-4 border-t ${isCurrentUser ? 'border-white/20' : 'border-white/5'}`}>
-                <StatItem label="Cravadas" value={user.cravadas} active={isCurrentUser} />
-                <StatItem label="Bônus" value={user.vencedor_bonus} active={isCurrentUser} />
-                <StatItem label="Vencedor" value={user.vencedor_only} active={isCurrentUser} />
-                <StatItem label="Jogos" value={user.total_jogos} active={isCurrentUser} />
+              {rankingLiga.map((user, index) => {
+                const isCurrentUser = String(user.user_id) === String(currentUserId);
+                return (
+                  <RankingCard 
+                    key={user.user_id} 
+                    pos={index + 1} 
+                    name={user.user_name} 
+                    isUser={isCurrentUser} 
+                    score={user.total_points} 
+                    scoreLabel="PONTOS"
+                    cravadas={user.cravadas} 
+                    vencedores={user.vencedor_only + user.cravadas} 
+                    gols={user.vencedor_bonus} 
+                    jogos={user.total_jogos} 
+                  />
+                );
+              })}
+            </>
+          )}
+
+          {/* RENDER DA TAB: RANKING GLOBAL (Por Eficiência de Cravadas) */}
+          {activeTab === 'global' && (
+            <>
+              <div className="bg-[#1A1C3A]/40 border border-dashed border-[#26283A] p-4 rounded-2xl text-center mb-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+                  💡 Este ranking ignora pontuações locais. O critério de desempate é: <br/>
+                  <span className="text-[#0077FF] font-black">Cravadas</span> → <span className="text-green-400 font-black">Acertos de Vitória/Empate</span> → <span className="text-amber-400 font-black">Gols Individuais</span>.
+                </p>
               </div>
-            </div>
-          );
-        })}
-      </div>
-      
+
+              {rankingGlobal.length === 0 ? (
+                <p className="text-center py-10 opacity-30 font-black uppercase italic">Sem palpites globais computados</p>
+              ) : (
+                rankingGlobal.map((user, index) => {
+                  const isCurrentUser = String(user.user_id) === String(currentUserId);
+                  return (
+                    <RankingCard 
+                      key={user.user_id} 
+                      pos={index + 1} 
+                      name={user.user_name} 
+                      isUser={isCurrentUser} 
+                      score={user.cravadas} 
+                      scoreLabel="CRAVADAS"
+                      cravadas={user.cravadas} 
+                      vencedores={user.acertoW} 
+                      gols={user.acertoGols} 
+                      jogos={user.total_jogos} 
+                    />
+                  );
+                })
+              )}
+            </>
+          )}
+
+        </div>
+      )}
       <BottomNav />
     </div>
   );
 }
 
-function StatItem({ label, value, active }) {
+// Sub-componente de Card isolado para reaproveitamento limpo de layout
+function RankingCard({ pos, name, isUser, score, scoreLabel, cravadas, vencedores, gols, jogos }) {
   return (
-    <div className="text-center">
-      <span className={`block font-black text-sm italic ${active ? 'text-white' : 'text-white/90'}`}>
-        {value || 0}
-      </span>
-      <span className={`block text-[7px] font-black uppercase tracking-widest ${active ? 'text-white/60' : 'text-gray-500'}`}>
-        {label}
-      </span>
+    <div className={`relative overflow-hidden p-5 rounded-[30px] border transition-all duration-300 ${isUser ? 'bg-[#0077FF] border-white shadow-[0_0_25px_rgba(0,119,255,0.4)] scale-[1.01] z-10' : 'bg-[#1A1C3A] border-[#26283A]'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-4">
+          <span className={`font-black italic text-xl ${isUser ? 'text-white' : 'text-[#0077FF]'} opacity-50`}>{pos}º</span>
+          <div className="flex flex-col">
+            <span className="font-black uppercase text-sm tracking-tighter italic leading-none">{name}</span>
+            {isUser && <span className="text-[7px] font-black uppercase text-white/70 tracking-widest mt-1">VOCÊ</span>}
+          </div>
+        </div>
+        <div className="text-right">
+          <span className="block font-black text-2xl italic leading-none">{score}</span>
+          <span className={`text-[8px] font-black uppercase tracking-wider ${isUser ? 'text-white/80' : 'text-[#0077FF]'}`}>{scoreLabel}</span>
+        </div>
+      </div>
+      <div className={`grid grid-cols-4 gap-2 pt-3 border-t ${isUser ? 'border-white/20' : 'border-white/5'} text-center`}>
+        <div>
+          <span className="block font-black text-xs italic">{cravadas}</span>
+          <span className="block text-[7px] font-black text-gray-500 uppercase tracking-tight">Cravadas</span>
+        </div>
+        <div>
+          <span className="block font-black text-xs italic">{vencedores}</span>
+          <span className="block text-[7px] font-black text-gray-500 uppercase tracking-tight">Vencedor</span>
+        </div>
+        <div>
+          <span className="block font-black text-xs italic">{gols}</span>
+          <span className="block text-[7px] font-black text-gray-500 uppercase tracking-tight">Acerto Gols</span>
+        </div>
+        <div>
+          <span className="block font-black text-xs italic">{jogos}</span>
+          <span className="block text-[7px] font-black text-gray-500 uppercase tracking-tight">Palpites</span>
+        </div>
+      </div>
     </div>
   );
 }

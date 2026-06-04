@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
+import Logo from '../components/Logo';
 
 export default function Comparison() {
   const { ligaId } = useParams();
@@ -138,7 +139,7 @@ export default function Comparison() {
           ← VOLTAR
         </button>
         <div className="text-right">
-          <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter leading-none">iCHUTE</h1>
+          <Logo size="sm" />
           <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Liga</span>
         </div>
       </header>

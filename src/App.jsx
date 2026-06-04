@@ -9,6 +9,8 @@ import Predictions from './pages/Predictions';
 import Ranking from './pages/Ranking';
 import Comparison from './pages/Comparison';
 import ResetPassword from './pages/ResetPassword';
+import LeagueSettings from './pages/LeagueSettings';
+import WhatIf from './pages/WhatIf';
 
 function App() {
   const [session, setSession] = useState(undefined);
@@ -34,7 +36,9 @@ function App() {
       <Route path="/predictions/:ligaId" element={session ? <Predictions /> : <Navigate to="/" replace />} />
       <Route path="/leagues/:ligaId/results" element={session ? <Comparison /> : <Navigate to="/" replace />} />
       <Route path="/leagues/:ligaId/ranking" element={session ? <Ranking /> : <Navigate to="/" replace />} />
-      
+      <Route path="/leagues/:ligaId/settings" element={session ? <LeagueSettings /> : <Navigate to="/" replace />} />
+      <Route path="/leagues/:ligaId/whatif" element={session ? <WhatIf /> : <Navigate to="/" replace />} />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

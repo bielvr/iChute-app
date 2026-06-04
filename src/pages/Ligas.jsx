@@ -12,7 +12,7 @@ export default function Ligas() {
   const [newLeagueName, setNewLeagueName] = useState("");
   const [selectedOfficialLeague, setSelectedOfficialLeague] = useState("");
   const [inviteCodeInput, setInviteCodeInput] = useState("");
-  const [points, setPoints] = useState({ exact: 10, winnerOne: 7, winnerOnly: 5 });
+  const [points, setPoints] = useState({ exact: 3, winnerOne: 2, winnerOnly: 1 });
 
   const nomeEsporte = String(sportId) === '2' ? 'HOCKEY' : 'FUTEBOL';
 
@@ -48,7 +48,8 @@ export default function Ligas() {
       const { data: reais } = await supabase
         .from('leagues')
         .select('id, name')
-        .eq('sport_id', sportId);
+        .eq('sport_id', sportId)
+        .eq('show', true); // ← Mostra apenas os que estão como true no banco
       
       setLigasReaisDisponiveis(reais || []);
 
