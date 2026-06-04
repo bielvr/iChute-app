@@ -4,7 +4,6 @@ import { supabase } from '../supabaseClient';
 import Logo from '../components/Logo';
 
 export default function LeagueSettings() {
-  // CORREÇÃO CRÍTICA: Pegando exatamente 'ligaId' (conforme definido no seu App.jsx)
   const { ligaId } = useParams();
   const navigate = useNavigate();
   
@@ -13,7 +12,6 @@ export default function LeagueSettings() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
-  // Dados de pontuação e filtro de temporada
   const [points, setPoints] = useState({ exact: 3, winnerOne: 2, winnerOnly: 1 });
   const [currentSeasonFilter, setCurrentSeasonFilter] = useState("2026");
 
@@ -26,11 +24,15 @@ export default function LeagueSettings() {
   async function checkAdminAndFetchData() {
     setLoading(true);
     try {
-      // 1. Pega o usuário autenticado atual
+      const idDaLigaNum = Number(ligaId);
+      if (isNaN(idDaLigaNum)) {
+        console.error("ID da liga inválido na URL.");
+        return navigate('/home');
+      }
+
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return navigate('/');
 
-      // 2. Busca o ID numérico (int8) correspondente na sua tabela de 'users'
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id')
@@ -43,23 +45,37 @@ export default function LeagueSettings() {
         return navigate('/home');
       }
 
-      // 3. Valida o cargo do membro usando as colunas idênticas ao banco de dados
-      const { data: memberCheck, error: memberError } = await supabase
-        .from('user_league_members')
-        .select('role')
-        .eq('user_league_id', ligaId) // Corrigido de leagueId para ligaId
-        .eq('user_id', userData.id)
-        .maybeSingle();
+      // DUPLA CHECAGEM: Dono da liga OU Admin na tabela de membros
+      const { data: leagueCheck } = await supabase
+        .from('user_leagues')
+        .select('owner_id')
+        .eq('id', idDaLigaNum)
+        .single();
 
-      if (memberError || !memberCheck || memberCheck.role?.toLowerCase() !== 'admin') {
+      let temAcessoAdmin = false;
+
+      if (leagueCheck && leagueCheck.owner_id === userData.id) {
+        temAcessoAdmin = true;
+      } else {
+        const { data: memberCheck } = await supabase
+          .from('user_league_members')
+          .select('role')
+          .eq('user_league_id', idDaLigaNum)
+          .eq('user_id', userData.id)
+          .maybeSingle();
+
+        if (memberCheck && memberCheck.role?.toLowerCase() === 'admin') {
+          temAcessoAdmin = true;
+        }
+      }
+
+      if (!temAcessoAdmin) {
         alert("Acesso negado. Apenas administradores acessam esta página.");
         return navigate(`/predictions/${ligaId}`);
       }
 
-      // Usuário validado como admin com sucesso!
       setIsAdmin(true);
 
-      // 4. Busca as regras de pontuação atuais através de user_leagues -> leagues_config
       const { data: leagueData } = await supabase
         .from('user_leagues')
         .select(`
@@ -70,7 +86,7 @@ export default function LeagueSettings() {
             winner_only_points
           )
         `)
-        .eq('id', ligaId)
+        .eq('id', idDaLigaNum)
         .single();
 
       if (leagueData && leagueData.leagues_config) {
@@ -81,7 +97,6 @@ export default function LeagueSettings() {
         });
       }
 
-      // 5. Busca a lista de membros vinculados a essa liga específica
       const { data: allMembers } = await supabase
         .from('user_league_members')
         .select(`
@@ -90,28 +105,26 @@ export default function LeagueSettings() {
           role,
           users ( name, email )
         `)
-        .eq('user_league_id', ligaId);
+        .eq('user_league_id', idDaLigaNum);
 
       setMembers(allMembers || []);
     } catch (err) {
-      console.error("Erro no painel de controle da liga:", err.message);
+      console.error("Erro no painel da liga:", err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  // SALVAR NOVAS CONFIGURAÇÕES E VIRAR TEMPORADA
   const handleSaveSettings = async () => {
-    if (!currentSeasonFilter.trim()) return alert("Insira a identificação da nova temporada (ex: 2026)!");
+    if (!currentSeasonFilter.trim()) return alert("Insira a identificação da nova temporada!");
     
     const confirmChange = window.confirm(
-      `Deseja iniciar uma nova temporada (${currentSeasonFilter})?\nOs palpites antigos e históricos serão mantidos e os novos jogos usarão este novo padrão de pontos.`
+      `Deseja iniciar uma nova temporada (${currentSeasonFilter})?\nOs palpites antigos serão mantidos e os novos jogos usarão este novo padrão de pontos.`
     );
     if (!confirmChange) return;
 
     setProcessing(true);
     try {
-      // 1. Insere a nova configuração na tabela leagues_config
       const { data: newConfig, error: configError } = await supabase
         .from('leagues_config')
         .insert({
@@ -124,15 +137,14 @@ export default function LeagueSettings() {
 
       if (configError) throw configError;
 
-      // 2. Atualiza a referência de configuração na tabela user_leagues
       const { error: leagueError } = await supabase
         .from('user_leagues')
         .update({ config_id: newConfig.id })
-        .eq('id', ligaId);
+        .eq('id', Number(ligaId));
 
       if (leagueError) throw leagueError;
 
-      alert(`Temporada ${currentSeasonFilter} configurada com sucesso!\nNova pontuação salva e vinculada à liga.`);
+      alert(`Temporada configurada com sucesso!\nNova pontuação salva e vinculada à liga.`);
     } catch (err) {
       alert("Erro ao salvar configurações: " + err.message);
     } finally {
@@ -140,7 +152,6 @@ export default function LeagueSettings() {
     }
   };
 
-  // REMOVER MEMBRO DA LIGA
   const handleRemoveMember = async (memberId, memberRole, memberName) => {
     if (memberRole?.toLowerCase() === 'admin') return alert("O administrador não pode ser removido!");
     if (!window.confirm(`Remover ${memberName || 'este usuário'} da liga?`)) return;
@@ -151,18 +162,11 @@ export default function LeagueSettings() {
       setMembers(members.filter(m => m.id !== memberId));
       alert("Membro removido com sucesso.");
     } catch (err) {
-      alert("Erro ao remover participante: " + err.message);
+      alert("Erro ao remover: " + err.message);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0A0E2A] text-white flex items-center justify-center font-sans">
-        <p className="text-xs font-black uppercase opacity-40 tracking-widest animate-pulse">Carregando painel...</p>
-      </div>
-    );
-  }
-
+  if (loading) return <div className="min-h-screen bg-[#0A0E2A] text-white flex items-center justify-center font-sans"><p className="text-xs font-black uppercase opacity-40 tracking-widest animate-pulse">Carregando painel...</p></div>;
   if (!isAdmin) return null;
 
   return (
@@ -178,8 +182,6 @@ export default function LeagueSettings() {
       </header>
 
       <div className="max-w-lg mx-auto space-y-6">
-        
-        {/* CARD DE PONTUAÇÃO E TEMPORADA */}
         <section className="bg-[#1A1C3A] p-8 rounded-[40px] border border-[#26283A] shadow-2xl">
           <h2 className="font-black italic uppercase text-sm text-[#0077FF] mb-2">Ajustar Pontuação & Temporada</h2>
           <p className="text-xs text-gray-400 mb-6 leading-relaxed">
@@ -209,7 +211,7 @@ export default function LeagueSettings() {
                   type="number" 
                   value={points[item.key]} 
                   onChange={e => setPoints({...points, [item.key]: e.target.value})}
-                  className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-xl p-3 text-center font-black text-[#0077FF] outline-none focus:border-[#0077FF]" 
+                  className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-xl p-3 text-center font-black text-[#0077FF] outline-none" 
                 />
               </div>
             ))}
@@ -224,7 +226,6 @@ export default function LeagueSettings() {
           </button>
         </section>
 
-        {/* CARD DE PARTICIPANTES */}
         <section className="bg-[#1A1C3A] p-6 rounded-[35px] border border-[#26283A] shadow-2xl">
           <h2 className="font-black italic uppercase text-sm mb-4 text-[#0077FF]">Gerenciar Participantes</h2>
           <div className="space-y-3">
@@ -233,9 +234,7 @@ export default function LeagueSettings() {
                 <div>
                   <span className="block font-bold text-xs uppercase">
                     {member.users?.name || "Sem Nome"} 
-                    {member.role?.toLowerCase() === 'admin' && (
-                      <span className="text-[#0077FF] ml-2 text-[9px] font-black italic bg-[#1A1C3A] px-2 py-0.5 rounded-md border border-[#26283A]">ADMIN</span>
-                    )}
+                    {member.role?.toLowerCase() === 'admin' && <span className="text-[#0077FF] ml-2 text-[9px] font-black italic bg-[#1A1C3A] px-2 py-0.5 rounded-md border border-[#26283A]">ADMIN</span>}
                   </span>
                   <span className="text-[10px] text-gray-500">{member.users?.email}</span>
                 </div>
