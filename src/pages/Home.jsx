@@ -8,7 +8,6 @@ export default function Home() {
   const [esportes, setEsportes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Mapeamento de emojis para cada esporte conforme os IDs e esportes do banco
   const emojisEsportes = {
     1: '⚽', // Futebol
     2: '🏒', // Ice Hockey
@@ -27,7 +26,7 @@ export default function Home() {
         const { data, error } = await supabase
           .from('sports')
           .select('id, name')
-          .eq('show', true); // ← Mostra apenas os que estão como true no banco
+          .eq('show', true);
 
         if (error) throw error;
         setEsportes(data || []);
@@ -54,20 +53,26 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-6 font-sans flex flex-col items-center justify-center relative">
       
-      {/* Botão de Logout */}
-      <button 
-        onClick={handleLogout}
-        className="absolute top-6 right-6 bg-[#1A1C3A] text-gray-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase italic border border-[#26283A] hover:text-white transition-all"
-      >
-        SAIR
-      </button>
+      {/* Botões de Ação no Topo Direito */}
+      <div className="absolute top-6 right-6 flex items-center gap-2">
+        <button 
+          onClick={() => navigate('/settings')}
+          className="bg-[#1A1C3A] text-gray-400 p-2.5 rounded-xl text-xs font-black border border-[#26283A] hover:text-white transition-all flex items-center justify-center"
+          title="Configurações"
+        >
+          ⚙️
+        </button>
+        <button 
+          onClick={handleLogout}
+          className="bg-[#1A1C3A] text-gray-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase italic border border-[#26283A] hover:text-white transition-all tracking-wider"
+        >
+          SAIR
+        </button>
+      </div>
 
       <header className="flex flex-col items-center justify-center text-center mb-12 select-none">
-        {/* Container que alinha o Símbolo do Raio ao lado do Nome da Marca */}
         <div className="flex items-center gap-3 justify-center">
-          {/* Renderiza APENAS o símbolo gráfico (raio/mira) combinando com o tamanho do texto */}
           <Logo size="md" showText={false} />
-    
           <h1 className="text-4xl font-black italic text-white uppercase tracking-tighter leading-none">
             iCHUTE
           </h1>
@@ -80,9 +85,9 @@ export default function Home() {
 
       <div className="grid gap-6 w-full max-w-md">
         {loading ? (
-          <p className="text-center text-xs opacity-40 font-bold uppercase">Carregando esportes...</p>
+          <p className="text-center text-xs opacity-40 font-bold uppercase tracking-wider">Carregando esportes...</p>
         ) : esportes.length === 0 ? (
-          <p className="text-center text-xs opacity-40 font-bold uppercase">Nenhuma modalidade ativa no momento.</p>
+          <p className="text-center text-xs opacity-40 font-bold uppercase tracking-wider">Nenhuma modalidade ativa no momento.</p>
         ) : (
           esportes.map((esporte) => (
             <button

@@ -11,6 +11,7 @@ import Comparison from './pages/Comparison';
 import ResetPassword from './pages/ResetPassword';
 import LeagueSettings from './pages/LeagueSettings';
 import WhatIf from './pages/WhatIf';
+import UserSettings from './pages/UserSettings';
 
 function App() {
   const [session, setSession] = useState(undefined);
@@ -25,20 +26,27 @@ function App() {
 
   return (
     <Routes>
+      {/* Rotas de Autenticação */}
       <Route path="/" element={session ? <Navigate to="/home" replace /> : <Login />} />
-      <Route path="/home" element={session ? <Home /> : <Navigate to="/" replace />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       
-      {/* Rota que a sua Home chama (seleção de esporte) */}
+      {/* Dashboard Principal (Home) */}
+      <Route path="/home" element={session ? <Home /> : <Navigate to="/" replace />} />
+      
+      {/* Configurações Globais do Usuário (Acessada pela engrenagem da Home) */}
+      <Route path="/settings" element={session ? <UserSettings /> : <Navigate to="/" replace />} />
+      
+      {/* Seleção de Ligas por Esporte (ex: /leagues/1 para Futebol, /leagues/2 para Hockey) */}
       <Route path="/leagues/:sportId" element={session ? <Ligas /> : <Navigate to="/" replace />} />
       
-      {/* Rotas internas da Liga selecionada */}
+      {/* Rotas Internas de uma Liga Específica */}
       <Route path="/predictions/:ligaId" element={session ? <Predictions /> : <Navigate to="/" replace />} />
       <Route path="/leagues/:ligaId/results" element={session ? <Comparison /> : <Navigate to="/" replace />} />
       <Route path="/leagues/:ligaId/ranking" element={session ? <Ranking /> : <Navigate to="/" replace />} />
       <Route path="/leagues/:ligaId/settings" element={session ? <LeagueSettings /> : <Navigate to="/" replace />} />
       <Route path="/leagues/:ligaId/whatif" element={session ? <WhatIf /> : <Navigate to="/" replace />} />
 
+      {/* Fallback para rotas inexistentes */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
