@@ -29,9 +29,9 @@ export default function Logo({ size = 'sm', showText = true }) {
 
       {/* TIPOGRAFIA INTEGRADA (À prova de cortes de renderização) */}
       {showText && (
-        <div className="flex tracking-tighter italic font-black uppercase leading-none min-w-max pl-1.5 pr-2 items-baseline">
-          {/* O pl-1.5 e o pr-0.5 dão o vão milimétrico exato para o 'i' deitar em itálico sem clipar */}
-          <span className="text-[#B0C4DE] font-light inline-block pr-0.5 transform scale-x-95">
+        <div className="flex tracking-tighter italic font-black uppercase leading-none min-w-max pl-1.5 pr-2 items-center">
+          {/* Mudamos para items-center e usamos flex-row para controle total */}
+          <span className="text-[#B0C4DE] font-light inline-block pr-1 transform scale-x-95 translate-y-[-0.5px]">
             i
           </span>
           <span className="text-[#0077FF] drop-shadow-[0_0_8px_rgba(0,119,255,0.3)] inline-block">

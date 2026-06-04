@@ -96,7 +96,7 @@ export default function Ligas() {
       await supabase.from('user_league_members').insert({ 
         user_league_id: league.id, 
         user_id: userData.id, 
-        role: 'player' 
+        role: 'member' 
       });
       
       setInviteCodeInput("");

@@ -15,8 +15,11 @@ export default function Predictions() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [numericUserId, setNumericUserId] = useState(null);
-  const [isOwner, setIsOwner] = useState(false); // Controle de acesso às configurações
+  const [isOwner, setIsOwner] = useState(false);
   
+  // Estado para controlar o feedback de salvamento individual de cada jogo: 'salvando' | 'sucesso' | 'erro'
+  const [statusSalvamento, setStatusSalvamento] = useState({});
+
   // Lógica Híbrida e Temporada Dinâmica
   const [isFootball, setIsFootball] = useState(false);
   const [officialLeagueId, setOfficialLeagueId] = useState(null);
@@ -49,7 +52,6 @@ export default function Predictions() {
         setLigaNome(infoLiga.name);
         setOfficialLeagueId(infoLiga.official_league_id);
         
-        // Valida se o usuário atual é dono da liga
         if (userData?.id && infoLiga.owner_id === userData.id) {
           setIsOwner(true);
         }
@@ -57,7 +59,6 @@ export default function Predictions() {
         const football = infoLiga.leagues.sport_id === 1; 
         setIsFootball(football);
 
-        // SACADA DA TEMPORADA DINÂMICA: Descobre a última cadastrada para este esporte/liga
         const { data: maxSeasonData } = await supabase
           .from('matches')
           .select('season')
@@ -118,7 +119,7 @@ export default function Predictions() {
       let query = supabase.from('matches')
         .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
         .eq('league_id', offId)
-        .eq('season', seasonStr); // Filtrando estritamente pela temporada detectada ou selecionada
+        .eq('season', seasonStr);
 
       if (footballMode) {
         query = query.eq('round', filterValue);
@@ -161,25 +162,72 @@ export default function Predictions() {
     }));
   };
 
-  const handleConfirmar = async () => {
-    if (!numericUserId) return alert("Erro: Usuário não identificado");
-    setSaving(true);
-    const payloads = Object.keys(palpites).map(matchId => ({
+  // SACADA DO SALVAMENTO AUTOMÁTICO INDIVIDUAL (Disparado via onBlur)
+  const salvarPalpiteIndividual = async (matchId) => {
+    if (!numericUserId) return;
+    const palpiteJogo = palpites[matchId];
+    
+    // Evita disparar se ambos os campos estiverem vazios
+    if (!palpiteGridValido(palpiteJogo)) return;
+
+    setStatusSalvamento(prev => ({ ...prev, [matchId]: 'salvando' }));
+
+    const payload = {
       user_id: numericUserId,
       match_id: parseInt(matchId),
       user_league_id: parseInt(ligaId),
-      prediction_home: palpites[matchId].home ?? 0,
-      prediction_away: palpites[matchId].away ?? 0,
+      prediction_home: palpiteJogo?.home ?? 0,
+      prediction_away: palpiteJogo?.away ?? 0,
       points_earned: 0
-    }));
+    };
+
+    try {
+      const { error } = await supabase.from('predictions')
+        .upsert([payload], { onConflict: 'user_id,match_id,user_league_id' });
+      if (error) throw error;
+      
+      setStatusSalvamento(prev => ({ ...prev, [matchId]: 'sucesso' }));
+      setTimeout(() => {
+        setStatusSalvamento(prev => ({ ...prev, [matchId]: null }));
+      }, 2500);
+    } catch (err) {
+      console.error("Erro salvamento em lote dinâmico:", err.message);
+      setStatusSalvamento(prev => ({ ...prev, [matchId]: 'erro' }));
+    }
+  };
+
+  const palpiteGridValido = (p) => {
+    if (!p) return false;
+    return (p.home !== undefined && p.home !== "") || (p.away !== undefined && p.away !== "");
+  };
+
+  const handleConfirmar = async () => {
+    if (!numericUserId) return alert("Erro: Usuário não identificado");
+    setSaving(true);
+    
+    const payloads = Object.keys(palpites)
+      .filter(id => palpiteGridValido(palpites[id]))
+      .map(matchId => ({
+        user_id: numericUserId,
+        match_id: parseInt(matchId),
+        user_league_id: parseInt(ligaId),
+        prediction_home: palpites[matchId].home ?? 0,
+        prediction_away: palpites[matchId].away ?? 0,
+        points_earned: 0
+      }));
+
+    if (payloads.length === 0) {
+      setSaving(false);
+      return alert("Insira ao menos um palpite antes de confirmar.");
+    }
 
     try {
       const { error } = await supabase.from('predictions')
         .upsert(payloads, { onConflict: 'user_id,match_id,user_league_id' });
       if (error) throw error;
-      alert("PALPITES REGISTRADOS! ⚡");
+      alert("TODOS OS PALPITES FORAM BLINDADOS! ⚡");
     } catch (err) {
-      alert("Erro ao salvar: " + err.message);
+      alert("Erro ao salvar lote total: " + err.message);
     } finally {
       setSaving(false);
     }
@@ -262,22 +310,39 @@ export default function Predictions() {
                 </div>
 
                 {/* Placar / Inputs */}
-                <div className="flex items-center gap-1 sm:gap-3 bg-[#0A0E2A] p-2 sm:p-4 rounded-[25px] border border-[#26283A]">
-                  <input 
-                    type="number" 
-                    value={palpites[jogo.id]?.home ?? ""} 
-                    onChange={(e) => handleInputChange(jogo.id, 'home', e.target.value)}
-                    className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                    placeholder="0" 
-                  />
-                  <span className="text-[#26283A] font-black italic text-lg sm:text-2xl">X</span>
-                  <input 
-                    type="number" 
-                    value={palpites[jogo.id]?.away ?? ""} 
-                    onChange={(e) => handleInputChange(jogo.id, 'away', e.target.value)}
-                    className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                    placeholder="0" 
-                  />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-3 bg-[#0A0E2A] p-2 sm:p-4 rounded-[25px] border border-[#26283A]">
+                    <input 
+                      type="number" 
+                      value={palpites[jogo.id]?.home ?? ""} 
+                      onChange={(e) => handleInputChange(jogo.id, 'home', e.target.value)}
+                      onBlur={() => salvarPalpiteIndividual(jogo.id)}
+                      className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                      placeholder="0" 
+                    />
+                    <span className="text-[#26283A] font-black italic text-lg sm:text-2xl">X</span>
+                    <input 
+                      type="number" 
+                      value={palpites[jogo.id]?.away ?? ""} 
+                      onChange={(e) => handleInputChange(jogo.id, 'away', e.target.value)}
+                      onBlur={() => salvarPalpiteIndividual(jogo.id)}
+                      className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                      placeholder="0" 
+                    />
+                  </div>
+                  
+                  {/* TEXTO DE FEEDBACK COMPACTO ABAIXO DO PLACAR */}
+                  <div className="h-3 flex items-center justify-center">
+                    {statusSalvamento[jogo.id] === 'salvando' && (
+                      <span className="text-[8px] font-black tracking-widest text-yellow-500 uppercase animate-pulse">Sincronizando...</span>
+                    )}
+                    {statusSalvamento[jogo.id] === 'sucesso' && (
+                      <span className="text-[8px] font-black tracking-widest text-green-400 uppercase">✓ Salvo com sucesso</span>
+                    )}
+                    {statusSalvamento[jogo.id] === 'erro' && (
+                      <span className="text-[8px] font-black tracking-widest text-red-500 uppercase">⚠️ Erro ao salvar</span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Time Visitante */}
@@ -287,7 +352,7 @@ export default function Predictions() {
                 </div>
               </div>
 
-              <div className="mt-4 text-center text-[9px] sm:text-[10px] font-black text-[#B0C4DE] opacity-40 uppercase italic">
+              <div className="mt-2 text-center text-[9px] sm:text-[10px] font-black text-[#B0C4DE] opacity-40 uppercase italic">
                 {formatarDataHora(jogo.date)}
               </div>
             </div>

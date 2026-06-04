@@ -49,10 +49,10 @@ export default function WhatIf() {
   const [filtroDivisao, setFiltroDivisao] = useState('Todas');
 
   useEffect(() => {
-    if (ligaId) calcularCenarioFuturo();
+    if (ligaId) calcularCenarioFuture();
   }, [ligaId]);
 
-  async function calcularCenarioFuturo() {
+  async function calcularCenarioFuture() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -161,11 +161,10 @@ export default function WhatIf() {
           }
         } else {
           // Regra NHL (2pts Win, 1pt OTL, 0pts Loss)
-          // Na simplificação de placar, se empatar no tempo normal, consideramos OTL para quem perdeu na prorrogação
           if (goalsHome > goalsAway) {
             teamsStats[match.home.id].w += 1;
             teamsStats[match.home.id].pts += 2;
-            if (goalsHome === goalsAway + 1 && match.status === 'OT') { // Exemplo de prorrogação simulada
+            if (goalsHome === goalsAway + 1 && match.status === 'OT') { 
               teamsStats[match.away.id].otl += 1;
               teamsStats[match.away.id].pts += 1;
             } else {
@@ -190,35 +189,33 @@ export default function WhatIf() {
           const palpH = palpite.prediction_home;
           const palpA = palpite.prediction_away;
 
-          const ganhouHomeReal = realH > realA;
-          const ganhouAwayReal = realA > realH;
-          const empateReal = realH === realA;
+          // Sinais matemáticos para capturar a tendência do placar:
+          // Maior que zero -> Mandante venceu | Menor que zero -> Visitante venceu | Zero -> Empate
+          const tendenciaReal = Math.sign(realH - realA);
+          const tendenciaPalp = Math.sign(palpH - palpA);
 
-          const ganhouHomePalp = palpH > palpA;
-          const ganhouAwayPalp = palpA > palpH;
-          const empatePalp = palpH === palpA;
-
-          // Cravada exata
+          // 1. Cravada Exata (Placar idêntico)
           if (realH === palpH && realA === palpA) {
             teamsStats[match.home.id].cravada += 1;
             teamsStats[match.away.id].cravada += 1;
-            // Conta cumulativamente para as outras colunas conforme a regra descrita
-            teamsStats[match.home.id].acertoGols += 1;
-            teamsStats[match.away.id].acertoGols += 1;
+            
             teamsStats[match.home.id].acertoW += 1;
             teamsStats[match.away.id].acertoW += 1;
+            
+            teamsStats[match.home.id].acertoGols += 1;
+            teamsStats[match.away.id].acertoGols += 1;
           } else {
-            // Acertou vencedor ou empate de forma simples
-            if ((ganhouHomeReal && ganhouHomePalp) || (ganhouAwayReal && ganhouAwayPalp) || (empateReal && empatePalp)) {
+            // 2. Acertou apenas a tendência do resultado (Quem venceu ou se deu empate)
+            if (tendenciaReal === tendenciaPalp) {
               teamsStats[match.home.id].acertoW += 1;
               teamsStats[match.away.id].acertoW += 1;
             } else {
-              // Errou a tendência do time (Acerto de Derrota computado aqui)
+              // 3. Errou o vencedor/empate (Registra como Acerto de Derrota para as duas equipes envolvidas)
               teamsStats[match.home.id].acertoL += 1;
               teamsStats[match.away.id].acertoL += 1;
             }
 
-            // Acertou número de gols individual de forma isolada
+            // 4. Checagem individual de gols (Mesmo sem cravar o placar inteiro)
             if (realH === palpH) teamsStats[match.home.id].acertoGols += 1;
             if (realA === palpA) teamsStats[match.away.id].acertoGols += 1;
           }
@@ -228,7 +225,6 @@ export default function WhatIf() {
       // Transforma o objeto em array e calcula saldos finais e ordenação competitiva
       const finalArray = Object.values(teamsStats).map(t => {
         const diff = t.gf - t.ga;
-        // Point Percentage na NHL: Pts / (Jogos * 2)
         const pPct = t.jogos > 0 ? (t.pts / (t.jogos * 2)).toFixed(2) : "0,00";
         return { ...t, diff, pPct };
       });

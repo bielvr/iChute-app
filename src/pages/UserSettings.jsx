@@ -58,6 +58,11 @@ export default function UserSettings() {
   }
 
   const handleSaveNotificationSettings = async (selectedTime = leadTime) => {
+    if (!user?.id) {
+      setMessage("Erro: Carregando dados do usuário. Tente novamente em instantes.");
+      return;
+    }
+
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setMessage("Seu dispositivo não suporta notificações Push.");
       return;
