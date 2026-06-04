@@ -8,13 +8,17 @@ export default function LeagueSettings() {
   const navigate = useNavigate();
   
   const [isAdmin, setIsAdmin] = useState(false);
-  const [currentUserMemberId, setCurrentUserMemberId] = useState(null); // Guarda o ID do participante atual para poder sair
+  const [currentUserMemberId, setCurrentUserMemberId] = useState(null); 
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
   const [points, setPoints] = useState({ exact: 3, winnerOne: 2, winnerOnly: 1 });
-  const [currentSeasonFilter, setCurrentSeasonFilter] = useState("2026");
+  
+  // ESTADOS DA TEMPORADA DINÂMICA
+  const [seasons, setSeasons] = useState([]);
+  const [currentSeasonFilter, setCurrentSeasonFilter] = useState("");
+  const [loadingSeasons, setLoadingSeasons] = useState(true);
 
   useEffect(() => {
     if (ligaId) {
@@ -46,14 +50,12 @@ export default function LeagueSettings() {
         return navigate('/home');
       }
 
-      // 1. Puxa dados da liga para checar se é o owner direto
       const { data: leagueCheck } = await supabase
         .from('user_leagues')
         .select('owner_id')
         .eq('id', idDaLigaNum)
         .single();
 
-      // 2. Puxa o registro dele na tabela de membros da liga
       const { data: memberCheck } = await supabase
         .from('user_league_members')
         .select('id, role')
@@ -61,7 +63,6 @@ export default function LeagueSettings() {
         .eq('user_id', userData.id)
         .maybeSingle();
 
-      // Se não for o dono e nem estiver na tabela de membros, ele está totalmente fora da liga
       const ehDono = leagueCheck && leagueCheck.owner_id === userData.id;
       const ehAdminPorRole = memberCheck && memberCheck.role?.toLowerCase() === 'admin';
       
@@ -70,7 +71,6 @@ export default function LeagueSettings() {
         return navigate('/home');
       }
 
-      // Define se possui direitos administrativos (Dono ou Role Admin)
       const temAcessoAdmin = ehDono || ehAdminPorRole;
       setIsAdmin(temAcessoAdmin);
       
@@ -78,7 +78,7 @@ export default function LeagueSettings() {
         setCurrentUserMemberId(memberCheck.id);
       }
 
-      // Se for admin, carrega as configurações de pontos da liga
+      // Se for admin, carrega as configurações e também busca as temporadas do banco
       if (temAcessoAdmin) {
         const { data: leagueData } = await supabase
           .from('user_leagues')
@@ -100,9 +100,33 @@ export default function LeagueSettings() {
             winnerOnly: leagueData.leagues_config.winner_only_points,
           });
         }
+
+        // BUSCA AS TEMPORADAS REAIS EXISTENTES NO BANCO
+        setLoadingSeasons(true);
+        const { data: matchesData, error: seasonsError } = await supabase
+          .from('matches')
+          .select('season');
+
+        if (!seasonsError && matchesData) {
+          // Filtra valores nulos/vazios e remove duplicatas usando Set
+          const uniqueSeasons = [
+            ...new Set(matchesData.map(m => m.season).filter(Boolean))
+          ].sort((a, b) => b.localeCompare(a)); // Ordena do mais recente para o mais antigo
+
+          setSeasons(uniqueSeasons);
+          
+          // Define a temporada mais recente encontrada como padrão inicial no select
+          if (uniqueSeasons.length > 0) {
+            setCurrentSeasonFilter(uniqueSeasons[0]);
+          }
+        } else {
+          console.error("Erro ao buscar temporadas:", seasonsError);
+          setSeasons(["2026"]);
+          setCurrentSeasonFilter("2026");
+        }
+        setLoadingSeasons(false);
       }
 
-      // Todos os membros permitidos na página podem ver quem está na liga
       const { data: allMembers } = await supabase
         .from('user_league_members')
         .select(`
@@ -122,10 +146,10 @@ export default function LeagueSettings() {
   }
 
   const handleSaveSettings = async () => {
-    if (!currentSeasonFilter.trim()) return alert("Insira a identificação da nova temporada!");
+    if (!currentSeasonFilter) return alert("Selecione uma temporada válida!");
     
     const confirmChange = window.confirm(
-      `Deseja iniciar uma nova temporada (${currentSeasonFilter})?\nOs palpites antigos serão mantidos e os novos jogos usarão este novo padrão de pontos.`
+      `Deseja aplicar a temporada (${currentSeasonFilter})?\nOs palpites antigos serão mantidos e os novos jogos usarão este novo padrão de pontos.`
     );
     if (!confirmChange) return;
 
@@ -227,15 +251,35 @@ export default function LeagueSettings() {
               Caso queira mudar as regras de pontos para os próximos jogos da nova temporada, altere os valores abaixo. Os dados anteriores ficarão congelados no histórico.
             </p>
 
-            <div className="mb-4">
-              <label className="block text-[8px] font-black uppercase mb-2 opacity-50 text-left pl-1">Próxima Temporada (Filtro ID)</label>
-              <input 
-                type="text" 
-                placeholder="Ex: 2026, TEMP_02, etc"
-                value={currentSeasonFilter}
-                onChange={e => setCurrentSeasonFilter(e.target.value)}
-                className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-xl p-3 text-center font-bold text-white outline-none text-xs uppercase focus:border-[#0077FF]"
-              />
+            {/* SELETOR MENU DINÂMICO DE TEMPORADAS */}
+            <div className="mb-6">
+              <label className="block text-[8px] font-black uppercase mb-2 opacity-50 text-left pl-1">Próxima Temporada (Filtro Ativo)</label>
+              <div className="relative">
+                <select 
+                  value={currentSeasonFilter}
+                  onChange={e => setCurrentSeasonFilter(e.target.value)}
+                  disabled={loadingSeasons}
+                  className="w-full bg-[#0A0E2A] border border-[#26283A] rounded-xl p-3.5 text-center font-bold text-white outline-none text-xs uppercase focus:border-[#0077FF] appearance-none cursor-pointer"
+                >
+                  {loadingSeasons ? (
+                    <option>Buscando temporadas no banco...</option>
+                  ) : seasons.length === 0 ? (
+                    <option value="2026">2026</option>
+                  ) : (
+                    seasons.map((season) => (
+                      <option key={season} value={season} className="bg-[#0A0E2A] text-white">
+                        {season}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {/* Seta Customizada do Menu Dropdown */}
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-[#0077FF]">
+                  <svg className="fill-currentColor h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                  </svg>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2 py-4 border-y border-[#26283A] mb-6">
@@ -259,7 +303,7 @@ export default function LeagueSettings() {
             <button 
               onClick={handleSaveSettings}
               disabled={processing}
-              className="w-full bg-[#0077FF] hover:bg-[#0055CC] py-4 rounded-2xl font-black italic text-sm uppercase shadow-lg active:scale-95 transition-all"
+              className="w-full bg-[#0077FF] hover:bg-[#0055CC] py-4 rounded-2xl font-black text-sm uppercase shadow-lg active:scale-95 transition-all"
             >
               {processing ? "SALVANDO..." : "💾 APLICAR REGRAS NA LIGA"}
             </button>
