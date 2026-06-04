@@ -10,6 +10,7 @@ export default function Comparison() {
   const scrollRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadingPreds, setLoadingPreds] = useState(false); // Novo loading específico para a troca de abas
   const [usuarios, setUsuarios] = useState([]);
   const [jogos, setJogos] = useState([]);
   const [palpitesMatriz, setPalpitesMatriz] = useState({});
@@ -18,8 +19,9 @@ export default function Comparison() {
   const [tabs, setTabs] = useState([]); 
   const [activeTab, setActiveTab] = useState(null);
 
+  // EFEITO 1: Carregar estrutura da Liga, Membros e Partidas
   useEffect(() => {
-    async function loadData() {
+    async function loadBaseData() {
       if (!ligaId) return;
       setLoading(true);
       
@@ -81,11 +83,38 @@ export default function Comparison() {
           setActiveTab(rodadas[0]);
         }
 
-        // 4. Buscar Palpites (Tabela: predictions)
-        const { data: allPreds } = await supabase
+      } catch (err) {
+        console.error("Erro no carregamento base:", err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadBaseData();
+  }, [ligaId]);
+
+  // Filtragem local dos jogos baseada na aba ativa (necessário para o Efeito 2 e Renderização)
+  const jogosFiltrados = jogos.filter(j => 
+    sportId === 2 ? j.localDateKey === activeTab : j.round === activeTab
+  );
+
+  // EFEITO 2: Buscar Palpites Filtrados por Jogo quando mudar de aba
+  useEffect(() => {
+    async function loadFilteredPredictions() {
+      if (!ligaId || jogosFiltrados.length === 0 || !activeTab) return;
+      
+      setLoadingPreds(true);
+      try {
+        // Mapeia estritamente os IDs dos confrontos renderizados na tela para buscar no banco
+        const matchIds = jogosFiltrados.map(j => j.id);
+
+        // 4. Buscar Palpites sob demanda (Tabela: predictions)
+        const { data: allPreds, error: errPreds } = await supabase
           .from('predictions')
           .select('*')
-          .eq('user_league_id', ligaId);
+          .eq('user_league_id', ligaId)
+          .in('match_id', matchIds); // Restringe a query apenas ao escopo necessário
+
+        if (errPreds) throw errPreds;
 
         const matriz = {};
         allPreds?.forEach(p => {
@@ -99,13 +128,14 @@ export default function Comparison() {
         setPalpitesMatriz(matriz);
 
       } catch (err) {
-        console.error("Erro no carregamento:", err.message);
+        console.error("Erro ao buscar palpites da rodada:", err.message);
       } finally {
-        setLoading(false);
+        setLoadingPreds(false);
       }
     }
-    loadData();
-  }, [ligaId]);
+
+    loadFilteredPredictions();
+  }, [activeTab, jogos, ligaId]);
 
   // Scroll automático para o final nas abas de data (NHL)
   useEffect(() => {
@@ -120,11 +150,6 @@ export default function Comparison() {
     if (pts === 1) return { bg: "bg-[#0077FF]/40", text: "text-[F0F8FF]", border: "border-[#0077FF]/50" };
     return { bg: "bg-[#0A0E2A]", text: "text-white/20", border: "border-transparent" };
   };
-
-  // Filtragem final dos jogos baseada na aba ativa
-  const jogosFiltrados = jogos.filter(j => 
-    sportId === 2 ? j.localDateKey === activeTab : j.round === activeTab
-  );
 
   if (loading) return (
     <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center">
@@ -164,7 +189,14 @@ export default function Comparison() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto grid gap-6">
+      <div className="max-w-2xl mx-auto grid gap-6 relative">
+        {/* Loader sutil para feedback visual rápido durante a troca de abas */}
+        {loadingPreds && (
+          <div className="absolute inset-0 bg-[#0A0E2A]/60 backdrop-blur-sm flex items-center justify-center z-50 rounded-3xl min-h-[200px]">
+            <div className="text-[#0077FF] text-[10px] font-black tracking-wider animate-pulse">ATUALIZANDO PALPITES...</div>
+          </div>
+        )}
+
         {jogosFiltrados.length === 0 && (
           <div className="text-center py-20 text-white/10 font-black italic uppercase tracking-widest">Nenhum resultado nesta rodada</div>
         )}
