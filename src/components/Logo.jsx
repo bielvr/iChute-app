@@ -35,11 +35,13 @@ export default function Logo({ size = "md", showText = true }) {
 
       </svg>
 
-      {/* TIPOGRAFIA INTEGRADA */}
+      {/* TIPOGRAFIA INTEGRADA CORRIGIDA */}
       {showText && (
-        <div className="flex tracking-tighter italic font-black uppercase leading-none">
-          <span className="text-[#B0C4DE] font-light">i</span>
-          <span className="text-[#0077FF] drop-shadow-[0_0_8px_rgba(0,119,255,0.4)]">Chute</span>
+        <div className="flex tracking-tighter italic font-black uppercase leading-none px-1 select-none">
+          {/* Um leve padding na esquerda para o 'i' não encostar na borda da caixa de texto */}
+          <span className="text-[#B0C4DE] font-light pl-0.5 pr-0.5">i</span>
+          {/* Um leve padding na direita para a inclinação do 'e' final respirar */}
+          <span className="text-[#0077FF] drop-shadow-[0_0_8px_rgba(0,119,255,0.4)] pr-0.5">Chute</span>
         </div>
       )}
     </div>

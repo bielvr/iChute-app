@@ -26,7 +26,6 @@ export default function UserSettings() {
         setUser(userData);
 
         if (userData) {
-          // Busca configuração existente de tempo no banco
           const { data: subData } = await supabase
             .from("user_push_subscriptions")
             .select("lead_time_minutes")
@@ -116,12 +115,20 @@ export default function UserSettings() {
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white font-sans pb-12">
-      <header className="border-b border-[#26283A] bg-[#1A1C3A] py-4 px-6 flex items-center justify-between sticky top-0 z-10">
-        <button onClick={() => navigate("/home")} className="text-xs font-black uppercase italic text-gray-400 hover:text-white">
+      {/* HEADER CORRIGIDO: Alinhamento absoluto central para a Logo */}
+      <header className="border-b border-[#26283A] bg-[#1A1C3A] py-4 px-6 flex items-center relative sticky top-0 z-10 min-h-[64px]">
+        {/* Botão posicionado de forma isolada na esquerda */}
+        <button 
+          onClick={() => navigate("/home")} 
+          className="text-xs font-black uppercase italic text-gray-400 hover:text-white transition-colors z-20 absolute left-6"
+        >
           ← Voltar
         </button>
-        <Logo size="sm" showText={true} />
-        <div className="w-6 h-6 opacity-0" />
+        
+        {/* Container da Logo forçado no centro exato da tela */}
+        <div className="mx-auto flex justify-center items-center z-10 w-full">
+          <Logo size="sm" showText={true} />
+        </div>
       </header>
 
       <main className="p-6 max-w-md mx-auto space-y-6">
