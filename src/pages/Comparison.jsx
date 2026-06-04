@@ -82,12 +82,10 @@ export default function Comparison() {
         }
 
         // 4. Buscar Palpites (Tabela: predictions)
-        const { data: allPreds, error: errPreds } = await supabase
+        const { data: allPreds } = await supabase
           .from('predictions')
           .select('*')
           .eq('user_league_id', ligaId);
-
-        if (errPreds) throw errPreds;
 
         const matriz = {};
         allPreds?.forEach(p => {
@@ -198,9 +196,7 @@ export default function Comparison() {
                 const theme = getPointTheme(pts);
                 return (
                   <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border ${theme.border} bg-[#0A0E2A]/40`}>
-                    <span className="text-[9px] font-black uppercase italic text-white/50">
-                      {u.name ? u.name.split(' ')[0] : 'Usuário'}
-                    </span>
+                    <span className="text-[9px] font-black uppercase italic text-white/50">{u.name.split(' ')[0]}</span>
                     <div className="flex items-center gap-3">
                       <span className={`font-black italic text-xs ${p ? 'text-white' : 'text-white/20'}`}>
                         {p ? `${p.home} x ${p.away}` : '-- x --'}
