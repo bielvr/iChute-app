@@ -32,7 +32,7 @@ export default function Logo({ size = 'sm', showText = true }) {
         // Adicionamos pl-2 para dar espaço ao "i" itálico e removemos o tracking-tighter global do bloco
         <div className="flex italic font-black uppercase leading-none min-w-max pl-2 pr-2 items-center">
           {/* O "i" ganhou uma margemzinha sutil para não colar no "Chute" após remover o tracking */}
-          <span className="text-[#B0C4DE] font-light inline-block pr-1.5 transform scale-x-95 translate-y-[-0.5px]">
+          <span className="text-[#B0C4DE] font-bold inline-block pr-1.5 transform scale-x-95 translate-y-[-0.5px]">
             i
           </span>
           {/* Opcional: mantivemos o tracking-tighter apenas no "Chute" se quiser ele bem colado */}
