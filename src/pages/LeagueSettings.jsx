@@ -4,7 +4,8 @@ import { supabase } from '../supabaseClient';
 import Logo from '../components/Logo';
 
 export default function LeagueSettings() {
-  const { leagueId } = useParams();
+  // CORREÇÃO: Pegando 'ligaId' exatamente como foi definido na rota do App.jsx
+  const { ligaId } = useParams();
   const navigate = useNavigate();
   
   const [isAdmin, setIsAdmin] = useState(false);
@@ -14,11 +15,13 @@ export default function LeagueSettings() {
 
   // Guardamos as pontuações e os dados da liga
   const [points, setPoints] = useState({ exact: 3, winnerOne: 2, winnerOnly: 1 });
-  const [currentSeasonFilter, setCurrentSeasonFilter] = useState("2025"); // Valor inicial padrão ou dinâmico
+  const [currentSeasonFilter, setCurrentSeasonFilter] = useState("2025"); 
 
   useEffect(() => {
-    checkAdminAndFetchData();
-  }, [leagueId]);
+    if (ligaId) {
+      checkAdminAndFetchData();
+    }
+  }, [ligaId]); // Escutando a variável correta aqui
 
   async function checkAdminAndFetchData() {
     setLoading(true);
@@ -29,22 +32,22 @@ export default function LeagueSettings() {
       const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
       if (!userData) return;
 
-      // 1. Valida se o usuário é admin na tabela user_league_members
+      // 1. Valida se o usuário é admin na tabela user_league_members usando o ligaId correto
       const { data: memberCheck, error } = await supabase
         .from('user_league_members')
         .select('role')
-        .eq('user_league_id', leagueId)
+        .eq('user_league_id', ligaId)
         .eq('user_id', userData.id)
         .single();
 
       if (error || memberCheck?.role !== 'admin') {
         alert("Acesso negado. Apenas administradores acessam esta página.");
-        return navigate(`/predictions/${leagueId}`);
+        return navigate(`/predictions/${ligaId}`);
       }
 
       setIsAdmin(true);
 
-      // 2. Busca as regras de pontuação atuais através do relacionamento do seu DB
+      // 2. Busca as regras de pontuação atuais
       const { data: leagueData } = await supabase
         .from('user_leagues')
         .select(`
@@ -55,7 +58,7 @@ export default function LeagueSettings() {
             winner_only_points
           )
         `)
-        .eq('id', leagueId)
+        .eq('id', ligaId)
         .single();
 
       if (leagueData && leagueData.leagues_config) {
@@ -66,7 +69,7 @@ export default function LeagueSettings() {
         });
       }
 
-      // 3. Busca a lista de membros (user_league_members -> users)
+      // 3. Busca a lista de membros
       const { data: allMembers } = await supabase
         .from('user_league_members')
         .select(`
@@ -75,7 +78,7 @@ export default function LeagueSettings() {
           role,
           users ( name, email )
         `)
-        .eq('user_league_id', leagueId);
+        .eq('user_league_id', ligaId);
 
       setMembers(allMembers || []);
     } catch (err) {
@@ -96,7 +99,7 @@ export default function LeagueSettings() {
 
     setProcessing(true);
     try {
-      // 1. Cria uma NOVA linha em leagues_config para registrar as pontuações dessa temporada
+      // 1. Cria uma NOVA linha em leagues_config
       const { data: newConfig, error: configError } = await supabase
         .from('leagues_config')
         .insert({
@@ -109,11 +112,11 @@ export default function LeagueSettings() {
 
       if (configError) throw configError;
 
-      // 2. Atualiza o config_id da liga para apontar para essa nova configuração
+      // 2. Atualiza o config_id da liga
       const { error: leagueError } = await supabase
         .from('user_leagues')
         .update({ config_id: newConfig.id })
-        .eq('id', leagueId);
+        .eq('id', ligaId);
 
       if (leagueError) throw leagueError;
 
@@ -146,7 +149,7 @@ export default function LeagueSettings() {
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-6 font-sans pb-20">
       <header className="mb-10 mt-4 flex items-center gap-4 max-w-lg mx-auto">
-        <Link to={`/predictions/${leagueId}`} className="bg-[#1A1C3A] px-4 py-2 rounded-xl text-[10px] font-black italic border border-[#26283A] hover:text-[#0077FF]">
+        <Link to={`/predictions/${ligaId}`} className="bg-[#1A1C3A] px-4 py-2 rounded-xl text-[10px] font-black italic border border-[#26283A] hover:text-[#0077FF]">
           ← VOLTAR
         </Link>
         <Logo size="sm" />
@@ -156,7 +159,6 @@ export default function LeagueSettings() {
       </header>
 
       <div className="max-w-lg mx-auto space-y-6">
-        
         {/* CARD DE PONTUAÇÃO E TEMPORADA */}
         <section className="bg-[#1A1C3A] p-8 rounded-[40px] border border-[#26283A] shadow-2xl">
           <h2 className="font-black italic uppercase text-sm text-[#0077FF] mb-2">Ajustar Pontuação & Temporada</h2>
