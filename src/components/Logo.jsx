@@ -29,12 +29,14 @@ export default function Logo({ size = 'sm', showText = true }) {
 
       {/* TIPOGRAFIA INTEGRADA (À prova de cortes de renderização) */}
       {showText && (
-        <div className="flex tracking-tighter italic font-black uppercase leading-none min-w-max pl-1.5 pr-2 items-center">
-          {/* Mudamos para items-center e usamos flex-row para controle total */}
-          <span className="text-[#B0C4DE] font-light inline-block pr-1 transform scale-x-95 translate-y-[-0.5px]">
+        // Adicionamos pl-2 para dar espaço ao "i" itálico e removemos o tracking-tighter global do bloco
+        <div className="flex italic font-black uppercase leading-none min-w-max pl-2 pr-2 items-center">
+          {/* O "i" ganhou uma margemzinha sutil para não colar no "Chute" após remover o tracking */}
+          <span className="text-[#B0C4DE] font-light inline-block pr-1.5 transform scale-x-95 translate-y-[-0.5px]">
             i
           </span>
-          <span className="text-[#0077FF] drop-shadow-[0_0_8px_rgba(0,119,255,0.3)] inline-block">
+          {/* Opcional: mantivemos o tracking-tighter apenas no "Chute" se quiser ele bem colado */}
+          <span className="text-[#0077FF] drop-shadow-[0_0_8px_rgba(0,119,255,0.3)] inline-block tracking-tighter">
             Chute
           </span>
         </div>

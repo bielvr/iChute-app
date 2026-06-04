@@ -162,12 +162,10 @@ export default function Predictions() {
     }));
   };
 
-  // SACADA DO SALVAMENTO AUTOMÁTICO INDIVIDUAL (Disparado via onBlur)
   const salvarPalpiteIndividual = async (matchId) => {
     if (!numericUserId) return;
     const palpiteJogo = palpites[matchId];
     
-    // Evita disparar se ambos os campos estiverem vazios
     if (!palpiteGridValido(palpiteJogo)) return;
 
     setStatusSalvamento(prev => ({ ...prev, [matchId]: 'salvando' }));
@@ -257,10 +255,10 @@ export default function Predictions() {
           <div className="flex items-center gap-3 text-right">
             {isOwner && (
               <Link 
-                to={`/league-settings/${ligaId}`} 
+                to={`/leagues/${ligaId}/settings`} 
                 className="bg-[#1A1C3A] border border-[#26283A] text-gray-400 hover:text-[#0077FF] hover:border-[#0077FF] p-2.5 rounded-xl text-[10px] font-black uppercase italic transition-all mr-1"
               >
-                ⚙️ CONFIGS
+                ⚙️
               </Link>
             )}
             <div>
@@ -303,13 +301,11 @@ export default function Predictions() {
           jogos.map((jogo) => (
             <div key={jogo.id} className="relative bg-[#1A1C3A] border border-[#26283A] p-4 sm:p-8 rounded-[35px] shadow-2xl w-full mx-auto overflow-hidden">
               <div className="flex justify-between items-center gap-2 sm:gap-4">
-                {/* Time Mandante */}
                 <div className="flex-1 flex flex-col items-center text-center gap-2">
                   <img src={jogo.home?.url_logo} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" alt={jogo.home?.name} />
                   <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-tight">{jogo.home?.name}</span>
                 </div>
 
-                {/* Placar / Inputs */}
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-1 sm:gap-3 bg-[#0A0E2A] p-2 sm:p-4 rounded-[25px] border border-[#26283A]">
                     <input 
@@ -331,7 +327,6 @@ export default function Predictions() {
                     />
                   </div>
                   
-                  {/* TEXTO DE FEEDBACK COMPACTO ABAIXO DO PLACAR */}
                   <div className="h-3 flex items-center justify-center">
                     {statusSalvamento[jogo.id] === 'salvando' && (
                       <span className="text-[8px] font-black tracking-widest text-yellow-500 uppercase animate-pulse">Sincronizando...</span>
@@ -345,7 +340,6 @@ export default function Predictions() {
                   </div>
                 </div>
 
-                {/* Time Visitante */}
                 <div className="flex-1 flex flex-col items-center text-center gap-2">
                   <img src={jogo.away?.url_logo} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" alt={jogo.away?.name} />
                   <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-tight">{jogo.away?.name}</span>
