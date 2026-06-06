@@ -53,22 +53,22 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-6 font-sans flex flex-col items-center justify-center relative">
       
-      {/* Botões de Ação no Topo Direito */}
-      <div className="absolute top-6 right-6 flex items-center gap-2">
-        <button 
-          onClick={() => navigate('/settings')}
-          className="bg-[#1A1C3A] text-gray-400 p-2.5 rounded-xl text-xs font-black border border-[#26283A] hover:text-white transition-all flex items-center justify-center"
-          title="Configurações"
-        >
-          ⚙️
-        </button>
-        <button 
-          onClick={handleLogout}
-          className="bg-[#1A1C3A] text-gray-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase italic border border-[#26283A] hover:text-white transition-all tracking-wider"
-        >
-          SAIR
-        </button>
-      </div>
+      {/* Botão de Configurações Isolado no Canto Esquerdo */}
+      <button 
+        onClick={() => navigate('/settings')}
+        className="absolute top-6 left-6 bg-[#1A1C3A] text-gray-400 p-2.5 rounded-xl text-xs font-black border border-[#26283A] hover:text-white transition-all flex items-center justify-center"
+        title="Configurações"
+      >
+        ⚙️
+      </button>
+
+      {/* Botão de Sair Isolado no Canto Direito */}
+      <button 
+        onClick={handleLogout}
+        className="absolute top-6 right-6 bg-[#1A1C3A] text-gray-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase italic border border-[#26283A] hover:text-white transition-all tracking-wider"
+      >
+        SAIR
+      </button>
 
       <header className="flex flex-col items-center justify-center text-center mb-12 select-none">
         <div className="flex items-center gap-3 justify-center">
@@ -87,7 +87,7 @@ export default function Home() {
         {loading ? (
           <p className="text-center text-xs opacity-40 font-bold uppercase tracking-wider">Carregando esportes...</p>
         ) : esportes.length === 0 ? (
-          <p className="text-center text-xs opacity-40 font-bold uppercase tracking-wider">Nenhuma modalidade ativa no momento.</p>
+          <p className="text-center text-xs opacity-40 font-bold uppercase tracking-wider">Nenhuma modalidade activa no momento.</p>
         ) : (
           esportes.map((esporte) => (
             <button
@@ -97,7 +97,7 @@ export default function Home() {
             >
               <div className="relative z-10">
                 <h2 className="text-2xl font-black italic uppercase tracking-tight group-hover:text-[#0077FF] transition-colors">
-                  {esporte.name === 'Football' ? 'FUTEBOL' : esporte.name === 'Ice Hockey' ? 'HOCKEY' : esporte.name.toUpperCase()}
+                  {esporte.name === 'Football' ? 'FUTEBOL' : esporte.name === 'Ice Hockey' ? 'HÓQUEI' : esporte.name.toUpperCase()}
                 </h2>
               </div>
               <span className="text-4xl grayscale group-hover:grayscale-0 transition-all">
