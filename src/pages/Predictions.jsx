@@ -4,6 +4,19 @@ import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 import Logo from '../components/Logo';
 
+// --- HELPERS DE DATA FIXOS EM UTC ---
+// Retorna sempre 'YYYY-MM-DD' baseado no tempo UTC absoluto da partida
+const getUTCDateString = (dateInput) => {
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().split('T')[0];
+};
+
+// Retorna o dia atual do sistema de acordo com o UTC absoluto
+const getHojeUTCString = () => {
+  return new Date().toISOString().split('T')[0];
+};
+
 export default function Predictions() {
   const { ligaId } = useParams();
   const navigate = useNavigate();
@@ -16,7 +29,7 @@ export default function Predictions() {
   const [saving, setSaving] = useState(false);
   const [numericUserId, setNumericUserId] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
-  
+
   // Estado para controlar o feedback de salvamento individual
   const [statusSalvamento, setStatusSalvamento] = useState({});
 
@@ -24,7 +37,7 @@ export default function Predictions() {
   const [isFootball, setIsFootball] = useState(false);
   const [officialLeagueId, setOfficialLeagueId] = useState(null);
   const [temporadaAtiva, setTemporadaAtiva] = useState('');
-  const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
+  const [dataSelecionada, setDataSelecionada] = useState(getHojeUTCString());
   const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
   const [listaRodadas, setListaRodadas] = useState([]);
 
@@ -50,11 +63,11 @@ export default function Predictions() {
 
         setLigaNome(infoLiga.name);
         setOfficialLeagueId(infoLiga.official_league_id);
-        
+
         if (userData?.id && infoLiga.owner_id === userData.id) {
           setIsOwner(true);
         }
-        
+
         const football = infoLiga.leagues.sport_id === 1; 
         setIsFootball(football);
 
@@ -64,7 +77,7 @@ export default function Predictions() {
           .eq('league_id', infoLiga.official_league_id)
           .order('season', { ascending: false })
           .limit(1);
-        
+
         const ultimaTemporada = maxSeasonData && maxSeasonData.length > 0 ? maxSeasonData[0].season : new Date().getFullYear().toString();
         setTemporadaAtiva(ultimaTemporada);
 
@@ -74,7 +87,7 @@ export default function Predictions() {
             .eq('league_id', infoLiga.official_league_id)
             .eq('season', ultimaTemporada)
             .order('round', { ascending: true });
-          
+
           const uniqueRounds = [...new Set(rounds?.map(r => r.round))];
           setListaRodadas(uniqueRounds);
 
@@ -88,12 +101,12 @@ export default function Predictions() {
             .order('date', { ascending: true })
             .limit(1)
             .maybeSingle();
-          
+
           let targetRound = currentMatch?.round;
-          let dataAlvo = new Date().toLocaleDateString('en-CA');
+          let dataAlvo = getHojeUTCString();
 
           if (currentMatch) {
-            dataAlvo = new Date(currentMatch.date).toLocaleDateString('en-CA');
+            dataAlvo = getUTCDateString(currentMatch.date);
           } else {
             const { data: lastMatch } = await supabase.from('matches')
               .select('round, date')
@@ -103,12 +116,12 @@ export default function Predictions() {
               .limit(1)
               .maybeSingle();
             targetRound = lastMatch?.round || uniqueRounds[0];
-            if (lastMatch) dataAlvo = new Date(lastMatch.date).toLocaleDateString('en-CA');
+            if (lastMatch) dataAlvo = getUTCDateString(lastMatch.date);
           }
 
           setRodadaSelecionada(targetRound);
           setDataSelecionada(dataAlvo);
-          setMesAtualCalendario(new Date(dataAlvo + 'T12:00:00'));
+          setMesAtualCalendario(new Date(`${dataAlvo}T12:00:00Z`));
 
           // Carrega as bolinhas do calendário filtradas por essa rodada específica
           buscarContagemJogos(infoLiga.official_league_id, ultimaTemporada, true, targetRound);
@@ -118,7 +131,7 @@ export default function Predictions() {
           // Outros esportes: mapeia todos os jogos da temporada para o calendário
           buscarContagemJogos(infoLiga.official_league_id, ultimaTemporada, false, null);
 
-          const hojeStr = new Date().toLocaleDateString('en-CA');
+          const hojeStr = getHojeUTCString();
           const { data: proximoJogo } = await supabase.from('matches')
             .select('date')
             .eq('league_id', infoLiga.official_league_id)
@@ -130,7 +143,7 @@ export default function Predictions() {
 
           let dataAlvo = hojeStr;
           if (proximoJogo) {
-            dataAlvo = new Date(proximoJogo.date).toLocaleDateString('en-CA');
+            dataAlvo = getUTCDateString(proximoJogo.date);
           } else {
             const { data: ultimoJogo } = await supabase.from('matches')
               .select('date')
@@ -139,11 +152,11 @@ export default function Predictions() {
               .order('date', { ascending: false })
               .limit(1)
               .maybeSingle();
-            if (ultimoJogo) dataAlvo = new Date(ultimoJogo.date).toLocaleDateString('en-CA');
+            if (ultimoJogo) dataAlvo = getUTCDateString(ultimoJogo.date);
           }
 
           setDataSelecionada(dataAlvo);
-          setMesAtualCalendario(new Date(dataAlvo + 'T12:00:00'));
+          setMesAtualCalendario(new Date(`${dataAlvo}T12:00:00Z`));
           fetchMatches(infoLiga.official_league_id, ultimaTemporada, false, dataAlvo, userData?.id);
         }
       } catch (err) {
@@ -160,11 +173,11 @@ export default function Predictions() {
       if (footballMode && roundValue) {
         query = query.eq('round', roundValue);
       }
-      
+
       const { data } = await query;
       const mapaContagem = {};
       data?.forEach(j => {
-        const dStr = new Date(j.date).toLocaleDateString('en-CA');
+        const dStr = getUTCDateString(j.date);
         mapaContagem[dStr] = (mapaContagem[dStr] || 0) + 1;
       });
       setContagemJogosPorDia(mapaContagem);
@@ -184,17 +197,16 @@ export default function Predictions() {
       if (footballMode) {
         query = query.eq('round', filterValue);
       } else {
-        // Busca exata pelo dia selecionado no calendário
-        const inicio = new Date(`${filterValue}T00:00:00Z`);
-        const fim = new Date(inicio); 
-        fim.setHours(fim.getHours() + 36);
-        query = query.gte('date', inicio.toISOString()).lte('date', fim.toISOString());
+        // Janela exata de 24h daquele dia em UTC absoluto
+        const inicio = `${filterValue}T00:00:00.000Z`;
+        const fim = `${filterValue}T23:59:59.999Z`;
+        query = query.gte('date', inicio).lte('date', fim);
       }
 
       const { data: matchesData } = await query.order('date', { ascending: true });
-      
+
       const filtrados = footballMode ? matchesData : (matchesData || []).filter(j => 
-        new Date(j.date).toLocaleDateString('en-CA') === filterValue
+        getUTCDateString(j.date) === filterValue
       );
       setJogos(filtrados);
 
@@ -220,10 +232,10 @@ export default function Predictions() {
   const handleMudancaRodada = async (novaRodada) => {
     setRodadaSelecionada(novaRodada);
     setLoading(true);
-    
+
     // 1. Atualiza as bolinhas do calendário para a nova rodada
     await buscarContagemJogos(officialLeagueId, temporadaAtiva, true, novaRodada);
-    
+
     // 2. Descobre o primeiro dia que tem jogo nessa nova rodada para focar o calendário nele
     const { data: primeiroJogoRodada } = await supabase.from('matches')
       .select('date')
@@ -234,14 +246,14 @@ export default function Predictions() {
       .limit(1)
       .maybeSingle();
 
-    let novaDataFoco = new Date().toLocaleDateString('en-CA');
+    let novaDataFoco = getHojeUTCString();
     if (primeiroJogoRodada) {
-      novaDataFoco = new Date(primeiroJogoRodada.date).toLocaleDateString('en-CA');
+      novaDataFoco = getUTCDateString(primeiroJogoRodada.date);
     }
-    
+
     setDataSelecionada(novaDataFoco);
-    setMesAtualCalendario(new Date(novaDataFoco + 'T12:00:00'));
-    
+    setMesAtualCalendario(new Date(`${novaDataFoco}T12:00:00Z`));
+
     // 3. Puxa os jogos desse dia específico da nova rodada
     fetchMatches(officialLeagueId, temporadaAtiva, false, novaDataFoco, numericUserId);
   };
@@ -250,20 +262,20 @@ export default function Predictions() {
   const gerarDiasDoCalendario = () => {
     const ano = mesAtualCalendario.getFullYear();
     const mes = mesAtualCalendario.getMonth();
-    
+
     const primeiroDiaDoMes = new Date(ano, mes, 1).getDay();
     const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
-    
+
     const painelDias = [];
     for (let i = 0; i < primeiroDiaDoMes; i++) {
       painelDias.push(null);
     }
-    
+
     for (let dia = 1; dia <= totalDiasNoMes; dia++) {
-      const mesFormatado = String(mes + 1).padStart(2, '0');
-      const diaFormatado = String(dia).padStart(2, '0');
-      const dataStringCompleta = `${ano}-${mesFormatado}-${diaFormatado}`;
-      
+      const mesFormatated = String(mes + 1).padStart(2, '0');
+      const diaFormatated = String(dia).padStart(2, '0');
+      const dataStringCompleta = `${ano}-${mesFormatated}-${diaFormatated}`;
+
       painelDias.push({
         dia,
         dataString: dataStringCompleta,
@@ -296,7 +308,7 @@ export default function Predictions() {
   const salvarPalpiteIndividual = async (matchId) => {
     if (!numericUserId) return;
     const palpiteJogo = palpites[matchId];
-    
+
     if (!palpiteGridValido(palpiteJogo)) return;
 
     setStatusSalvamento(prev => ({ ...prev, [matchId]: 'salvando' }));
@@ -310,12 +322,11 @@ export default function Predictions() {
       points_earned: 0
     };
 
-  // Restante da lógica inalterado
     try {
       const { error } = await supabase.from('predictions')
         .upsert([payload], { onConflict: 'user_id,match_id,user_league_id' });
       if (error) throw error;
-      
+
       setStatusSalvamento(prev => ({ ...prev, [matchId]: 'sucesso' }));
       setTimeout(() => {
         setStatusSalvamento(prev => ({ ...prev, [matchId]: null }));
@@ -334,7 +345,7 @@ export default function Predictions() {
   const handleConfirmar = async () => {
     if (!numericUserId) return alert("Erro: Usuário não identificado");
     setSaving(true);
-    
+
     const payloads = Object.keys(palpites)
       .filter(id => palpiteGridValido(palpites[id]))
       .map(matchId => ({
@@ -378,7 +389,7 @@ export default function Predictions() {
         {/* Topo do Header */}
         <div className="flex items-center justify-between mb-2">
           <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]">← VOLTAR</button>
-          
+
           <div className="flex items-center gap-3 text-right">
             {isOwner && (
               <Link 
@@ -395,7 +406,7 @@ export default function Predictions() {
           </div>
         </div>
 
-        {/* BARRA 1: Seletor de Rodadas (Apenas Futebol) - Com ícone padronizado */}
+        {/* BARRA 1: Seletor de Rodadas (Apenas Futebol) */}
         {isFootball && (
           <div className="relative w-full">
             <select 
@@ -409,7 +420,7 @@ export default function Predictions() {
           </div>
         )}
 
-        {/* BARRA 2: Calendário Customizado Dropdown - Com ícone padronizado */}
+        {/* BARRA 2: Calendário Customizado Dropdown */}
         <div className="relative w-full">
           <div 
             onClick={() => setCalendarioAberto(!calendarioAberto)}
@@ -436,8 +447,8 @@ export default function Predictions() {
               <div className="grid grid-cols-7 gap-y-3 gap-x-1">
                 {gerarDiasDoCalendario().map((item, index) => {
                   if (!item) return <div key={`empty-${index}`} />;
-                  
-                  const isHoje = item.dataString === new Date().toLocaleDateString('en-CA');
+
+                  const isHoje = item.dataString === getHojeUTCString();
                   const isSelecionado = item.dataString === dataSelecionada;
 
                   return (
@@ -457,7 +468,7 @@ export default function Predictions() {
                       }`}
                     >
                       <span className="text-xs font-bold">{item.dia}</span>
-                      
+
                       {item.qtdJogos > 0 && (
                         <span className={`text-[8px] mt-0.5 block w-3.5 h-3.5 leading-[14px] text-center rounded-full font-black ${
                           isSelecionado ? 'bg-white text-[#0077FF]' : 'bg-[#26283A] text-gray-400'
@@ -473,7 +484,7 @@ export default function Predictions() {
               <div className="mt-4 pt-2 border-t border-[#26283A] flex justify-center">
                 <button 
                   onClick={() => {
-                    const hoje = new Date().toLocaleDateString('en-CA');
+                    const hoje = getHojeUTCString();
                     setDataSelecionada(hoje);
                     setMesAtualCalendario(new Date());
                     setCalendarioAberto(false);
@@ -522,7 +533,7 @@ export default function Predictions() {
                       placeholder="0" 
                     />
                   </div>
-                  
+
                   <div className="h-3 flex items-center justify-center">
                     {statusSalvamento[jogo.id] === 'salvando' && (
                       <span className="text-[8px] font-black tracking-widest text-yellow-500 uppercase animate-pulse">Sincronizando...</span>
@@ -559,7 +570,7 @@ export default function Predictions() {
       </div>
 
       <BottomNav />
-      
+
       <style dangerouslySetInnerHTML={{__html: `
         input::-webkit-outer-spin-button, 
         input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } 
