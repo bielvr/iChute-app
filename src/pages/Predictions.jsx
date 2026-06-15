@@ -78,7 +78,6 @@ export default function Predictions() {
           const uniqueRounds = [...new Set(rounds?.map(r => r.round))];
           setListaRodadas(uniqueRounds);
 
-          // Encontrar rodada atual/próxima
           const now = new Date().toISOString();
           const { data: currentMatch } = await supabase.from('matches')
             .select('round, date')
@@ -110,12 +109,9 @@ export default function Predictions() {
           setDataSelecionada(dataAlvo);
           setMesAtualCalendario(new Date(dataAlvo + 'T12:00:00'));
 
-          // Carrega as bolinhas do calendário filtradas por essa rodada específica
           buscarContagemJogos(infoLiga.official_league_id, ultimaTemporada, true, targetRound);
-          // Busca os jogos do dia inicial selecionado
           fetchMatches(infoLiga.official_league_id, ultimaTemporada, false, dataAlvo, userData?.id);
         } else {
-          // Outros esportes
           buscarContagemJogos(infoLiga.official_league_id, ultimaTemporada, false, null);
 
           const hojeStr = new Date().toLocaleDateString('en-CA');
@@ -153,7 +149,6 @@ export default function Predictions() {
     initPage();
   }, [ligaId]);
 
-  // Função dinâmica para contar jogos convertendo para a data local do dispositivo
   async function buscarContagemJogos(offId, seasonStr, footballMode, roundValue) {
     try {
       let query = supabase.from('matches').select('date').eq('league_id', offId).eq('season', seasonStr);
@@ -164,7 +159,6 @@ export default function Predictions() {
       const { data } = await query;
       const mapaContagem = {};
       data?.forEach(j => {
-        // Mapeia na bolinha com base no fuso local do navegador do usuário
         const dStr = new Date(j.date).toLocaleDateString('en-CA');
         mapaContagem[dStr] = (mapaContagem[dStr] || 0) + 1;
       });
@@ -185,8 +179,6 @@ export default function Predictions() {
       if (footballMode) {
         query = query.eq('round', filterValue);
       } else {
-        // Amortece a busca do banco trazendo uma janela de 48h (D-1 até D+1) em UTC.
-        // Isso garante que jogos que mudaram de dia na Austrália ou Edmonton sejam puxados do banco.
         const dataBase = new Date(`${filterValue}T12:00:00`);
         const inicioQuery = new Date(dataBase.getTime() - 24 * 60 * 60 * 1000).toISOString();
         const fimQuery = new Date(dataBase.getTime() + 24 * 60 * 60 * 1000).toISOString();
@@ -196,10 +188,8 @@ export default function Predictions() {
 
       const { data: matchesData } = await query.order('date', { ascending: true });
 
-      // O FILTRO REAL: Filtra rigorosamente comparando com o dia local do usuário.
-      // Se para o australiano o jogo caiu no dia 16, vai renderizar certinho na aba do dia 16.
       const filtrados = (matchesData || []).filter(j => {
-        if (footballMode) return true; // Futebol filtra pela rodada inteira na query
+        if (footballMode) return true;
         return new Date(j.date).toLocaleDateString('en-CA') === filterValue;
       });
       
@@ -295,10 +285,23 @@ export default function Predictions() {
     }));
   };
 
+  // --- NOVA FUNÇÃO AUXILIAR DE VALIDAÇÃO DE HORÁRIO ---
+  const jogoJaComecou = (matchDateString) => {
+    return new Date() >= new Date(matchDateString);
+  };
+
   const salvarPalpiteIndividual = async (matchId) => {
     if (!numericUserId) return;
-    const palpiteJogo = palpites[matchId];
+    
+    // Procura o jogo no estado local para checar o horário
+    const jogoInfo = jogos.find(j => j.id === parseInt(matchId));
+    if (jogoInfo && jogoJaComecou(jogoInfo.date)) {
+      setStatusSalvamento(prev => ({ ...prev, [matchId]: 'erro' }));
+      alert("Bloqueado: Este jogo já começou ou encerrou!");
+      return;
+    }
 
+    const palpiteJogo = palpites[matchId];
     if (!palpiteGridValido(palpiteJogo)) return;
 
     setStatusSalvamento(prev => ({ ...prev, [matchId]: 'salvando' }));
@@ -336,8 +339,14 @@ export default function Predictions() {
     if (!numericUserId) return alert("Erro: Usuário não identificado");
     setSaving(true);
 
+    // Filtra os payloads removendo os jogos que já começaram
     const payloads = Object.keys(palpites)
-      .filter(id => palpiteGridValido(palpites[id]))
+      .filter(id => {
+        const valido = palpiteGridValido(palpites[id]);
+        const jogoInfo = jogos.find(j => j.id === parseInt(id));
+        const noPrazo = jogoInfo ? !jogoJaComecou(jogoInfo.date) : false;
+        return valido && noPrazo;
+      })
       .map(matchId => ({
         user_id: numericUserId,
         match_id: parseInt(matchId),
@@ -349,14 +358,14 @@ export default function Predictions() {
 
     if (payloads.length === 0) {
       setSaving(false);
-      return alert("Insira ao menos um palpite antes de confirmar.");
+      return alert("Insira ao menos um palpite válido em jogos que ainda não começaram.");
     }
 
     try {
       const { error } = await supabase.from('predictions')
         .upsert(payloads, { onConflict: 'user_id,match_id,user_league_id' });
       if (error) throw error;
-      alert("TODOS OS PALPITES FORAM GRAVADOS! ⚡");
+      alert("TODOS OS PALPITES DENTRO DO PRAZO FORAM GRAVADOS! ⚡");
     } catch (err) {
       alert("Erro ao salvar lote total: " + err.message);
     } finally {
@@ -492,59 +501,74 @@ export default function Predictions() {
         {jogos.length === 0 ? (
           <p className="text-center p-10 opacity-30 font-black italic uppercase">Sem jogos para este dia</p>
         ) : (
-          jogos.map((jogo) => (
-            <div key={jogo.id} className="relative bg-[#1A1C3A] border border-[#26283A] p-4 sm:p-8 rounded-[35px] shadow-2xl w-full mx-auto overflow-hidden">
-              <div className="flex justify-between items-center gap-2 sm:gap-4">
-                <div className="flex-1 flex flex-col items-center text-center gap-2">
-                  <img src={jogo.home?.url_logo} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" alt={jogo.home?.name} />
-                  <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-tight">{jogo.home?.name}</span>
-                </div>
+          jogos.map((jogo) => {
+            // Verifica o prazo de cada jogo no loop de renderização
+            const bloqueado = jogoJaComecou(jogo.date);
 
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-1 sm:gap-3 bg-[#0A0E2A] p-2 sm:p-4 rounded-[25px] border border-[#26283A]">
-                    <input 
-                      type="number" 
-                      value={palpites[jogo.id]?.home ?? ""} 
-                      onChange={(e) => handleInputChange(jogo.id, 'home', e.target.value)}
-                      onBlur={() => salvarPalpiteIndividual(jogo.id)}
-                      className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                      placeholder="0" 
-                    />
-                    <span className="text-[#26283A] font-black italic text-lg sm:text-2xl">X</span>
-                    <input 
-                      type="number" 
-                      value={palpites[jogo.id]?.away ?? ""} 
-                      onChange={(e) => handleInputChange(jogo.id, 'away', e.target.value)}
-                      onBlur={() => salvarPalpiteIndividual(jogo.id)}
-                      className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                      placeholder="0" 
-                    />
+            return (
+              <div key={jogo.id} className={`relative bg-[#1A1C3A] border p-4 sm:p-8 rounded-[35px] shadow-2xl w-full mx-auto overflow-hidden transition-opacity ${bloqueado ? 'border-red-900/30 opacity-60' : 'border-[#26283A]'}`}>
+                
+                {/* Badge visual de jogo bloqueado */}
+                {bloqueado && (
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-red-600/20 border border-red-500/30 px-3 py-0.5 rounded-full text-[8px] font-black text-red-400 tracking-widest uppercase italic">
+                    Palpites Encerrados
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center gap-2 sm:gap-4 mt-2">
+                  <div className="flex-1 flex flex-col items-center text-center gap-2">
+                    <img src={jogo.home?.url_logo} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" alt={jogo.home?.name} />
+                    <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-tight">{jogo.home?.name}</span>
                   </div>
 
-                  <div className="h-3 flex items-center justify-center">
-                    {statusSalvamento[jogo.id] === 'salvando' && (
-                      <span className="text-[8px] font-black tracking-widest text-yellow-500 uppercase animate-pulse">Sincronizando...</span>
-                    )}
-                    {statusSalvamento[jogo.id] === 'sucesso' && (
-                      <span className="text-[8px] font-black tracking-widest text-green-400 uppercase">✓ Salvo com sucesso</span>
-                    )}
-                    {statusSalvamento[jogo.id] === 'erro' && (
-                      <span className="text-[8px] font-black tracking-widest text-red-500 uppercase">⚠️ Erro ao salvar</span>
-                    )}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-3 bg-[#0A0E2A] p-2 sm:p-4 rounded-[25px] border border-[#26283A]">
+                      <input 
+                        type="number" 
+                        disabled={bloqueado} // <-- INPUT DESABILITADO
+                        value={palpites[jogo.id]?.home ?? ""} 
+                        onChange={(e) => handleInputChange(jogo.id, 'home', e.target.value)}
+                        onBlur={() => salvarPalpiteIndividual(jogo.id)}
+                        className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:text-gray-500 disabled:cursor-not-allowed" 
+                        placeholder="0" 
+                      />
+                      <span className="text-[#26283A] font-black italic text-lg sm:text-2xl">X</span>
+                      <input 
+                        type="number" 
+                        disabled={bloqueado} // <-- INPUT DESABILITADO
+                        value={palpites[jogo.id]?.away ?? ""} 
+                        onChange={(e) => handleInputChange(jogo.id, 'away', e.target.value)}
+                        onBlur={() => salvarPalpiteIndividual(jogo.id)}
+                        className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:text-gray-500 disabled:cursor-not-allowed" 
+                        placeholder="0" 
+                      />
+                    </div>
+
+                    <div className="h-3 flex items-center justify-center">
+                      {statusSalvamento[jogo.id] === 'salvando' && (
+                        <span className="text-[8px] font-black tracking-widest text-yellow-500 uppercase animate-pulse">Sincronizando...</span>
+                      )}
+                      {statusSalvamento[jogo.id] === 'sucesso' && (
+                        <span className="text-[8px] font-black tracking-widest text-green-400 uppercase">✓ Salvo com sucesso</span>
+                      )}
+                      {statusSalvamento[jogo.id] === 'erro' && (
+                        <span className="text-[8px] font-black tracking-widest text-red-500 uppercase">⚠️ Bloqueado</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex flex-col items-center text-center gap-2">
+                    <img src={jogo.away?.url_logo} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" alt={jogo.away?.name} />
+                    <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-tight">{jogo.away?.name}</span>
                   </div>
                 </div>
 
-                <div className="flex-1 flex flex-col items-center text-center gap-2">
-                  <img src={jogo.away?.url_logo} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" alt={jogo.away?.name} />
-                  <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-tight">{jogo.away?.name}</span>
+                <div className="mt-2 text-center text-[9px] sm:text-[10px] font-black text-[#B0C4DE] opacity-40 uppercase italic">
+                  {formatarDataHora(jogo.date)}
                 </div>
               </div>
-
-              <div className="mt-2 text-center text-[9px] sm:text-[10px] font-black text-[#B0C4DE] opacity-40 uppercase italic">
-                {formatarDataHora(jogo.date)}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
 
         <button 
