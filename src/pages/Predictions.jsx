@@ -17,7 +17,7 @@ export default function Predictions() {
   const [numericUserId, setNumericUserId] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
   
-  // Estado para controlar o feedback de salvamento individual de cada jogo: 'salvando' | 'sucesso' | 'erro'
+  // Estado para controlar o feedback de salvamento individual
   const [statusSalvamento, setStatusSalvamento] = useState({});
 
   // Lógica Híbrida e Temporada Dinâmica
@@ -28,11 +28,10 @@ export default function Predictions() {
   const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
   const [listaRodadas, setListaRodadas] = useState([]);
 
-  const proximosDias = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    return d.toLocaleDateString('en-CA');
-  });
+  // --- ESTADOS DO CALENDÁRIO CUSTOMIZADO ---
+  const [calendarioAberto, setCalendarioAberto] = useState(false);
+  const [mesAtualCalendario, setMesAtualCalendario] = useState(new Date());
+  const [contagemJogosPorDia, setContagemJogosPorDia] = useState({});
 
   useEffect(() => {
     async function initPage() {
@@ -79,9 +78,10 @@ export default function Predictions() {
           const uniqueRounds = [...new Set(rounds?.map(r => r.round))];
           setListaRodadas(uniqueRounds);
 
+          // Encontrar rodada atual/próxima
           const now = new Date().toISOString();
           const { data: currentMatch } = await supabase.from('matches')
-            .select('round')
+            .select('round, date')
             .eq('league_id', infoLiga.official_league_id)
             .eq('season', ultimaTemporada)
             .gte('date', now)
@@ -90,21 +90,61 @@ export default function Predictions() {
             .maybeSingle();
           
           let targetRound = currentMatch?.round;
-          if (!targetRound) {
+          let dataAlvo = new Date().toLocaleDateString('en-CA');
+
+          if (currentMatch) {
+            dataAlvo = new Date(currentMatch.date).toLocaleDateString('en-CA');
+          } else {
             const { data: lastMatch } = await supabase.from('matches')
-              .select('round')
+              .select('round, date')
               .eq('league_id', infoLiga.official_league_id)
               .eq('season', ultimaTemporada)
               .order('date', { ascending: false })
               .limit(1)
               .maybeSingle();
             targetRound = lastMatch?.round || uniqueRounds[0];
+            if (lastMatch) dataAlvo = new Date(lastMatch.date).toLocaleDateString('en-CA');
           }
 
           setRodadaSelecionada(targetRound);
-          fetchMatches(infoLiga.official_league_id, ultimaTemporada, true, targetRound, userData?.id);
+          setDataSelecionada(dataAlvo);
+          setMesAtualCalendario(new Date(dataAlvo + 'T12:00:00'));
+
+          // Carrega as bolinhas do calendário filtradas por essa rodada específica
+          buscarContagemJogos(infoLiga.official_league_id, ultimaTemporada, true, targetRound);
+          // Busca os jogos do dia inicial selecionado
+          fetchMatches(infoLiga.official_league_id, ultimaTemporada, false, dataAlvo, userData?.id);
         } else {
-          fetchMatches(infoLiga.official_league_id, ultimaTemporada, false, dataSelecionada, userData?.id);
+          // Outros esportes: mapeia todos os jogos da temporada para o calendário
+          buscarContagemJogos(infoLiga.official_league_id, ultimaTemporada, false, null);
+
+          const hojeStr = new Date().toLocaleDateString('en-CA');
+          const { data: proximoJogo } = await supabase.from('matches')
+            .select('date')
+            .eq('league_id', infoLiga.official_league_id)
+            .eq('season', ultimaTemporada)
+            .gte('date', new Date().toISOString())
+            .order('date', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          let dataAlvo = hojeStr;
+          if (proximoJogo) {
+            dataAlvo = new Date(proximoJogo.date).toLocaleDateString('en-CA');
+          } else {
+            const { data: ultimoJogo } = await supabase.from('matches')
+              .select('date')
+              .eq('league_id', infoLiga.official_league_id)
+              .eq('season', ultimaTemporada)
+              .order('date', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (ultimoJogo) dataAlvo = new Date(ultimoJogo.date).toLocaleDateString('en-CA');
+          }
+
+          setDataSelecionada(dataAlvo);
+          setMesAtualCalendario(new Date(dataAlvo + 'T12:00:00'));
+          fetchMatches(infoLiga.official_league_id, ultimaTemporada, false, dataAlvo, userData?.id);
         }
       } catch (err) {
         console.error("Erro init iChute:", err.message);
@@ -112,6 +152,26 @@ export default function Predictions() {
     }
     initPage();
   }, [ligaId]);
+
+  // Função dinâmica para contar jogos (por Rodada no futebol ou Geral em outros esportes)
+  async function buscarContagemJogos(offId, seasonStr, footballMode, roundValue) {
+    try {
+      let query = supabase.from('matches').select('date').eq('league_id', offId).eq('season', seasonStr);
+      if (footballMode && roundValue) {
+        query = query.eq('round', roundValue);
+      }
+      
+      const { data } = await query;
+      const mapaContagem = {};
+      data?.forEach(j => {
+        const dStr = new Date(j.date).toLocaleDateString('en-CA');
+        mapaContagem[dStr] = (mapaContagem[dStr] || 0) + 1;
+      });
+      setContagemJogosPorDia(mapaContagem);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   async function fetchMatches(offId, seasonStr, footballMode, filterValue, uId) {
     setLoading(true);
@@ -124,6 +184,7 @@ export default function Predictions() {
       if (footballMode) {
         query = query.eq('round', filterValue);
       } else {
+        // Busca exata pelo dia selecionado no calendário
         const inicio = new Date(`${filterValue}T00:00:00Z`);
         const fim = new Date(inicio); 
         fim.setHours(fim.getHours() + 36);
@@ -154,6 +215,76 @@ export default function Predictions() {
       setLoading(false);
     }
   }
+
+  // Mudança de Rodada (Futebol) limpa/atualiza os dias do calendário baseado nela
+  const handleMudancaRodada = async (novaRodada) => {
+    setRodadaSelecionada(novaRodada);
+    setLoading(true);
+    
+    // 1. Atualiza as bolinhas do calendário para a nova rodada
+    await buscarContagemJogos(officialLeagueId, temporadaAtiva, true, novaRodada);
+    
+    // 2. Descobre o primeiro dia que tem jogo nessa nova rodada para focar o calendário nele
+    const { data: primeiroJogoRodada } = await supabase.from('matches')
+      .select('date')
+      .eq('league_id', officialLeagueId)
+      .eq('season', temporadaAtiva)
+      .eq('round', novaRodada)
+      .order('date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    let novaDataFoco = new Date().toLocaleDateString('en-CA');
+    if (primeiroJogoRodada) {
+      novaDataFoco = new Date(primeiroJogoRodada.date).toLocaleDateString('en-CA');
+    }
+    
+    setDataSelecionada(novaDataFoco);
+    setMesAtualCalendario(new Date(novaDataFoco + 'T12:00:00'));
+    
+    // 3. Puxa os jogos desse dia específico da nova rodada
+    fetchMatches(officialLeagueId, temporadaAtiva, false, novaDataFoco, numericUserId);
+  };
+
+  // --- GERADOR DA GRADE DO CALENDÁRIO ---
+  const gerarDiasDoCalendario = () => {
+    const ano = mesAtualCalendario.getFullYear();
+    const mes = mesAtualCalendario.getMonth();
+    
+    const primeiroDiaDoMes = new Date(ano, mes, 1).getDay();
+    const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
+    
+    const painelDias = [];
+    for (let i = 0; i < primeiroDiaDoMes; i++) {
+      painelDias.push(null);
+    }
+    
+    for (let dia = 1; dia <= totalDiasNoMes; dia++) {
+      const mesFormatado = String(mes + 1).padStart(2, '0');
+      const diaFormatado = String(dia).padStart(2, '0');
+      const dataStringCompleta = `${ano}-${mesFormatado}-${diaFormatado}`;
+      
+      painelDias.push({
+        dia,
+        dataString: dataStringCompleta,
+        qtdJogos: contagemJogosPorDia[dataStringCompleta] || 0
+      });
+    }
+    return painelDias;
+  };
+
+  const mudarMes = (direcao) => {
+    const novoMes = new Date(mesAtualCalendario);
+    novoMes.setMonth(novoMes.getMonth() + direcao);
+    setMesAtualCalendario(novoMes);
+  };
+
+  const formatarDataBarraSecundaria = (strData) => {
+    if (!strData) return '';
+    const [ano, mes, dia] = strData.split('-');
+    const meses = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+    return `${dia} DE ${meses[parseInt(mes) - 1]} DE ${ano}`;
+  };
 
   const handleInputChange = (matchId, side, value) => {
     setPalpites(prev => ({
@@ -189,7 +320,7 @@ export default function Predictions() {
         setStatusSalvamento(prev => ({ ...prev, [matchId]: null }));
       }, 2500);
     } catch (err) {
-      console.error("Erro salvamento em lote dinâmico:", err.message);
+      console.error("Erro salvamento individual:", err.message);
       setStatusSalvamento(prev => ({ ...prev, [matchId]: 'erro' }));
     }
   };
@@ -223,7 +354,7 @@ export default function Predictions() {
       const { error } = await supabase.from('predictions')
         .upsert(payloads, { onConflict: 'user_id,match_id,user_league_id' });
       if (error) throw error;
-      alert("TODOS OS PALPITES FORAM BLINDADOS! ⚡");
+      alert("TODOS OS PALPITES FORAM GRAVADOS! ⚡");
     } catch (err) {
       alert("Erro ao salvar lote total: " + err.message);
     } finally {
@@ -233,13 +364,7 @@ export default function Predictions() {
 
   const formatarDataHora = (dateString) => {
     const dataObj = new Date(dateString);
-    const hora = dataObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    
-    if (isFootball) {
-      const dia = dataObj.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
-      return `${dia} - ${hora}`;
-    }
-    return hora;
+    return dataObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   };
 
   if (loading && !jogos.length) {
@@ -248,8 +373,9 @@ export default function Predictions() {
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 font-sans pb-40 overflow-x-hidden">
-      <header className="max-w-2xl mx-auto mb-8">
-        <div className="flex items-center justify-between mb-8">
+      <header className="max-w-2xl mx-auto mb-8 flex flex-col gap-3">
+        {/* Topo do Header */}
+        <div className="flex items-center justify-between mb-2">
           <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]">← VOLTAR</button>
           
           <div className="flex items-center gap-3 text-right">
@@ -268,35 +394,107 @@ export default function Predictions() {
           </div>
         </div>
 
-        {isFootball ? (
+        {/* BARRA 1: Seletor de Rodadas (Apenas se for futebol) */}
+        {isFootball && (
           <select 
             value={rodadaSelecionada} 
-            onChange={(e) => { 
-              setRodadaSelecionada(e.target.value); 
-              fetchMatches(officialLeagueId, temporadaAtiva, true, e.target.value, numericUserId); 
-            }}
+            onChange={(e) => handleMudancaRodada(e.target.value)}
             className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none"
           >
             {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
           </select>
-        ) : (
-          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-            {proximosDias.map((data) => (
-              <button 
-                key={data} 
-                onClick={() => { setDataSelecionada(data); fetchMatches(officialLeagueId, temporadaAtiva, false, data, numericUserId); }}
-                className={`flex-shrink-0 px-6 py-4 rounded-[20px] font-black text-xs uppercase italic border ${data === dataSelecionada ? 'bg-[#0077FF] text-white border-[#0077FF]' : 'bg-[#1A1C3A] text-gray-400 border-[#26283A]'}`}
-              >
-                {data === new Date().toLocaleDateString('en-CA') ? 'HOJE' : data.split('-').reverse().slice(0,2).join('/')}
-              </button>
-            ))}
-          </div>
         )}
+
+        {/* BARRA 2: Seletor de Dia Expandível (Presente em todos os esportes) */}
+        <div className="relative w-full">
+          <div 
+            onClick={() => setCalendarioAberto(!calendarioAberto)}
+            className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-[#0077FF] flex justify-between items-center cursor-pointer select-none"
+          >
+            <span className="text-sm tracking-wide">{formatarDataBarraSecundaria(dataSelecionada)}</span>
+            <span className={`text-xs transition-transform duration-300 ${calendarioAberto ? 'rotate-180' : ''}`}>▼</span>
+          </div>
+
+          {/* Modal / Dropdown do Calendário */}
+          {calendarioAberto && (
+            <div className="absolute top-[115%] left-0 w-full bg-[#141733] border border-[#26283A] rounded-[25px] p-4 z-50 shadow-2xl animate-fadeIn">
+              {/* Controle do Mês */}
+              <div className="flex justify-between items-center mb-4 px-2">
+                <button onClick={() => mudarMes(-1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">‹</button>
+                <span className="font-black italic uppercase text-xs sm:text-sm tracking-wide text-white">
+                  {mesAtualCalendario.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </span>
+                <button onClick={() => mudarMes(1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">›</button>
+              </div>
+
+              {/* Iniciais da semana */}
+              <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black text-gray-500 uppercase mb-2">
+                <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+              </div>
+
+              {/* Dias */}
+              <div className="grid grid-cols-7 gap-y-3 gap-x-1">
+                {gerarDiasDoCalendario().map((item, index) => {
+                  if (!item) return <div key={`empty-${index}`} />;
+                  
+                  const isHoje = item.dataString === new Date().toLocaleDateString('en-CA');
+                  const isSelecionado = item.dataString === dataSelecionada;
+
+                  return (
+                    <button
+                      key={item.dataString}
+                      onClick={() => {
+                        setDataSelecionada(item.dataString);
+                        setCalendarioAberto(false);
+                        fetchMatches(officialLeagueId, temporadaAtiva, false, item.dataString, numericUserId);
+                      }}
+                      className={`relative flex flex-col items-center justify-center py-2 rounded-xl transition-all ${
+                        isSelecionado 
+                          ? 'bg-[#0077FF] text-white font-black scale-105' 
+                          : isHoje 
+                          ? 'bg-[#1A1C3A] border border-[#0077FF] text-white' 
+                          : 'hover:bg-[#1A1C3A] text-gray-300'
+                      }`}
+                    >
+                      <span className="text-xs font-bold">{item.dia}</span>
+                      
+                      {/* Bolinha NHL de quantidade de jogos */}
+                      {item.qtdJogos > 0 && (
+                        <span className={`text-[8px] mt-0.5 block w-3.5 h-3.5 leading-[14px] text-center rounded-full font-black ${
+                          isSelecionado ? 'bg-white text-[#0077FF]' : 'bg-[#26283A] text-gray-400'
+                        }`}>
+                          {item.qtdJogos}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Botão Hoje */}
+              <div className="mt-4 pt-2 border-t border-[#26283A] flex justify-center">
+                <button 
+                  onClick={() => {
+                    const hoje = new Date().toLocaleDateString('en-CA');
+                    setDataSelecionada(hoje);
+                    setMesAtualCalendario(new Date());
+                    setCalendarioAberto(false);
+                    fetchMatches(officialLeagueId, temporadaAtiva, false, hoje, numericUserId);
+                  }}
+                  className="bg-[#1A1C3A] border border-[#26283A] text-white px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider"
+                >
+                  Hoje
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </header>
 
+      {/* Grid de Jogos */}
       <div className="grid gap-6 max-w-2xl mx-auto">
         {jogos.length === 0 ? (
-          <p className="text-center p-10 opacity-30 font-black italic uppercase">Sem jogos para este filtro</p>
+          <p className="text-center p-10 opacity-30 font-black italic uppercase">Sem jogos para este dia</p>
         ) : (
           jogos.map((jogo) => (
             <div key={jogo.id} className="relative bg-[#1A1C3A] border border-[#26283A] p-4 sm:p-8 rounded-[35px] shadow-2xl w-full mx-auto overflow-hidden">
@@ -370,6 +568,11 @@ export default function Predictions() {
         input[type=number] { -moz-appearance: textfield; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
       `}} />
     </div>
   );

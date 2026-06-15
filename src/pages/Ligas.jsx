@@ -6,7 +6,7 @@ export default function Ligas() {
   const { sportId } = useParams();
   const [ligasAtivas, setLigasAtivas] = useState([]);
   const [ligasReaisDisponiveis, setLigasReaisDisponiveis] = useState([]);
-  const [nomeEsporte, setNomeEsporte] = useState("MODALIDADE"); // Estado dinâmico para a escala de novos esportes
+  const [nomeEsporte, setNomeEsporte] = useState("MODALIDADE"); 
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
@@ -14,6 +14,9 @@ export default function Ligas() {
   const [selectedOfficialLeague, setSelectedOfficialLeague] = useState("");
   const [inviteCodeInput, setInviteCodeInput] = useState("");
   const [points, setPoints] = useState({ exact: 3, winnerOne: 2, winnerOnly: 1 });
+  
+  // Estado para controlar a visibilidade do modal de ajuda
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   async function fetchData() {
     setLoading(true);
@@ -24,7 +27,6 @@ export default function Ligas() {
       const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
       if (!userData) return;
 
-      // 1. Busca o nome do esporte dinamicamente do banco para não chumbar texto no código
       const { data: sportData } = await supabase
         .from('sports')
         .select('name')
@@ -42,7 +44,6 @@ export default function Ligas() {
         setNomeEsporte(traducoes[sportData.name] || sportData.name.toUpperCase());
       }
 
-      // 2. Ligas Ativas (Buscando os dados relacionais de participação)
       const { data: participacoes, error: partError } = await supabase
         .from('user_league_members')
         .select(`
@@ -63,7 +64,6 @@ export default function Ligas() {
         setLigasAtivas(filtradas);
       }
 
-      // 3. Ligas Oficiais Disponíveis para vínculo na criação
       const { data: reais, error: reaisError } = await supabase
         .from('leagues')
         .select('id, name')
@@ -115,14 +115,12 @@ export default function Ligas() {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
       
-      // Cria a configuração de pontuação na tabela leagues_config
       const { data: config } = await supabase.from('leagues_config').insert({
         exact_score_points: points.exact,
         winner_and_one_goal_points: points.winnerOne,
         winner_only_points: points.winnerOnly
       }).select().single();
       
-      // Cria a liga customizada apontando para a config criada
       const { data: league } = await supabase.from('user_leagues').insert({
         name: newLeagueName, 
         owner_id: userData.id, 
@@ -130,7 +128,6 @@ export default function Ligas() {
         official_league_id: selectedOfficialLeague
       }).select().single();
       
-      // Insere o criador automaticamente como admin na liga criada
       await supabase.from('user_league_members').insert({ 
         user_league_id: league.id, 
         user_id: userData.id, 
@@ -219,8 +216,20 @@ export default function Ligas() {
               </select>
             </div>
 
+            {/* SELEÇÃO E BOTÃO DE AJUDA DAS REGRAS */}
+            <div className="flex justify-between items-center pt-4">
+              <span className="text-[10px] font-black uppercase opacity-40 tracking-wider">Regras de Pontuação</span>
+              <button 
+                type="button"
+                onClick={() => setShowHelpModal(true)}
+                className="w-5 h-5 bg-[#0A0E2A] border border-[#26283A] rounded-full text-[10px] font-black text-[#0077FF] flex items-center justify-center hover:bg-[#0077FF] hover:text-white transition-all shadow-md"
+              >
+                ?
+              </button>
+            </div>
+
             {/* CARD INTERNO: REGRAS DE PONTUAÇÃO */}
-            <div className="grid grid-cols-3 gap-2 py-4 border-y border-[#26283A]">
+            <div className="grid grid-cols-3 gap-2 pb-4 border-b border-[#26283A]">
               {[
                 { label: 'Placar Exato', key: 'exact' },
                 { label: 'Venc +1 Gol', key: 'winnerOne' },
@@ -248,6 +257,39 @@ export default function Ligas() {
           </div>
         </section>
       </div>
+
+      {/* MODAL DE AJUDA FLUTUANTE (BACKDROP EMBASSADO) */}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-[#0A0E2A]/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+          <div className="bg-[#1A1C3A] border border-[#26283A] p-6 rounded-[35px] max-w-sm w-full shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            <h3 className="font-black italic text-base uppercase text-[#0077FF] mb-4 tracking-tight">Como funciona a pontuação?</h3>
+            
+            <div className="space-y-4 text-xs font-medium text-gray-300">
+              <div>
+                <h4 className="font-black text-white uppercase text-[10px] tracking-wide mb-1 text-[#55DD55]">1. Placar Exato</h4>
+                <p>Você crava perfeitamente os gols dos dois times. Ex: Palpite 2x1 | Resultado 2x1.</p>
+              </div>
+
+              <div>
+                <h4 className="font-black text-white uppercase text-[10px] tracking-wide mb-1 text-cyan-400">2. Vencedor + 1 Gol</h4>
+                <p>Você acerta quem venceu e o número exato de gols de apenas um dos lados. Ex: Palpite 2x1 | Resultado 2x0.</p>
+              </div>
+
+              <div>
+                <h4 className="font-black text-white uppercase text-[10px] tracking-wide mb-1 text-amber-400">3. Só Vencedor / Tendência</h4>
+                <p>Você acerta apenas o ganhador ou empate, mas erra os placares. Ex: Palpite 2x1 | Resultado 1x0.</p>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setShowHelpModal(false)}
+              className="w-full mt-6 bg-[#0A0E2A] border border-[#26283A] py-3 rounded-xl font-black uppercase text-xs text-gray-400 hover:text-white hover:border-[#0077FF] transition-all"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

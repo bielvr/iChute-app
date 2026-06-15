@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 import Logo from '../components/Logo';
 
-// Dicionário para classificar conferência/divisão na NHL sem mexer no banco
+// Dicionário NHL (Chaveado por Nome conforme original)
 const NHL_MAPPING = {
   "Edmonton Oilers": { conf: "Oeste", div: "Pacífico" },
   "Colorado Avalanche": { conf: "Oeste", div: "Central" },
@@ -35,6 +35,22 @@ const NHL_MAPPING = {
   "Columbus Blue Jackets": { conf: "Leste", div: "Metropolitana" }
 };
 
+// Dicionário Oficial da Copa mapeado por ID do Banco de Dados
+const WORLD_CUP_MAPPING = {
+  53: { grupo: "Grupo A" }, 54: { grupo: "Grupo E" }, 55: { grupo: "Grupo H" }, 56: { grupo: "Grupo J" },
+  57: { grupo: "Grupo J" }, 58: { grupo: "Grupo D" }, 59: { grupo: "Grupo J" }, 60: { grupo: "Grupo G" },
+  61: { grupo: "Grupo B" }, 62: { grupo: "Grupo C" }, 63: { grupo: "Grupo H" }, 64: { grupo: "Grupo B" },
+  65: { grupo: "Grupo B" }, 66: { grupo: "Grupo K" }, 67: { grupo: "Grupo K" }, 68: { grupo: "Grupo A" },
+  69: { grupo: "Grupo E" }, 70: { grupo: "Grupo L" }, 71: { grupo: "Grupo E" }, 72: { grupo: "Grupo G" },
+  73: { grupo: "Grupo E" }, 74: { grupo: "Grupo C" }, 75: { grupo: "Grupo H" }, 76: { grupo: "Grupo D" },
+  77: { grupo: "Grupo I" }, 78: { grupo: "Grupo L" }, 79: { grupo: "Grupo C" }, 80: { grupo: "Grupo L" },
+  81: { grupo: "Grupo G" }, 82: { grupo: "Grupo I" }, 83: { grupo: "Grupo F" }, 84: { grupo: "Grupo J" },
+  85: { grupo: "Grupo C" }, 86: { grupo: "Grupo A" }, 87: { grupo: "Grupo I" }, 88: { grupo: "Grupo G" },
+  89: { grupo: "Grupo F" }, 90: { grupo: "Grupo L" }, 91: { grupo: "Grupo D" }, 92: { grupo: "Grupo K" },
+  93: { grupo: "Grupo I" }, 94: { grupo: "Grupo F" }, 95: { grupo: "Grupo B" }, 96: { grupo: "Grupo A" },
+  97: { grupo: "Grupo F" }, 98: { grupo: "Grupo D" }, 99: { grupo: "Grupo H" }, 100: { grupo: "Grupo K" }
+};
+
 export default function WhatIf() {
   const { ligaId } = useParams();
   const navigate = useNavigate();
@@ -42,11 +58,13 @@ export default function WhatIf() {
   const [loading, setLoading] = useState(true);
   const [ligaNome, setLigaNome] = useState('');
   const [isFootball, setIsFootball] = useState(true);
+  const [isWorldCup, setIsWorldCup] = useState(false);
   const [tabelaCalculada, setTabelaCalculada] = useState([]);
 
-  // Filtros NHL
+  // Filtros NHL / Copa
   const [filtroConferencia, setFiltroConferencia] = useState('Todas');
   const [filtroDivisao, setFiltroDivisao] = useState('Todas');
+  const [filtroGrupo, setFiltroGrupo] = useState('Todos');
 
   useEffect(() => {
     if (ligaId) calcularCenarioFuture();
@@ -61,7 +79,7 @@ export default function WhatIf() {
       const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
       if (!userData) return;
 
-      // 1. Pega os dados da Liga e do Esporte
+      // 1. Pega os dados de user_leagues e faz o join correto apontando para leagues (sport_id)
       const { data: infoLiga } = await supabase
         .from('user_leagues')
         .select(`name, official_league_id, leagues (sport_id)`)
@@ -69,16 +87,21 @@ export default function WhatIf() {
         .single();
 
       setLigaNome(infoLiga.name);
+      
       const football = infoLiga.leagues.sport_id === 1;
+      // Garante a verificação baseada na coluna correta mapeada pelo schema
+      const worldCup = infoLiga.official_league_id === 12; 
+      
       setIsFootball(football);
+      setIsWorldCup(worldCup);
 
-      // 2. Pega todas as partidas da liga oficial
+      // 2. Busca os jogos filtrando pela coluna 'league_id' da tabela 'matches'
       const { data: matches } = await supabase
         .from('matches')
         .select(`*, home:home_team_id(id, name, url_logo), away:away_team_id(id, name, url_logo)`)
         .eq('league_id', infoLiga.official_league_id);
 
-      // 3. Pega todos os palpites desse jogador nesta liga de amigos
+      // 3. Pega os palpites associados a essa liga de amigos
       const { data: predictions } = await supabase
         .from('predictions')
         .select('*')
@@ -90,52 +113,48 @@ export default function WhatIf() {
         predMap[p.match_id] = p;
       });
 
-      // Estrutura inicial do acumulador por Time
       const teamsStats = {};
 
       const inicializarTime = (team) => {
         if (!teamsStats[team.id]) {
           const nhlInfo = NHL_MAPPING[team.name] || { conf: "N/A", div: "N/A" };
+          const wcInfo = WORLD_CUP_MAPPING[team.id] || { grupo: "N/A" };
+          
           teamsStats[team.id] = {
             id: team.id,
             name: team.name,
             logo: team.url_logo,
             jogos: 0, w: 0, d: 0, l: 0, otl: 0,
             pts: 0, gf: 0, ga: 0,
-            acertoW: 0, acertoL: 0, acertoGols: 0, cravada: 0, semPalpite: 0,
+            acertoW: 0, acertoD: 0, acertoL: 0, acertoGols: 0, cravada: 0, semPalpite: 0,
             conferencia: nhlInfo.conf,
-            divisao: nhlInfo.div
+            divisao: nhlInfo.div,
+            grupo: wcInfo.grupo
           };
         }
       };
 
-      // Processa cada partida mesclando a realidade (se jogada) ou o palpite (se houver)
       matches?.forEach(match => {
         if (!match.home || !match.away) return;
         inicializarTime(match.home);
         inicializarTime(match.away);
 
         const palpite = predMap[match.id];
-
-        // Definindo quais placares usaremos para o cenário "E se?"
         let goalsHome = match.goals_home;
         let goalsAway = match.goals_away;
         let temPalpite = !!palpite;
 
-        // Se o jogo não aconteceu ou o usuário quer ver o impacto do palpite dele, simulamos com o palpite
         if (temPalpite) {
           goalsHome = palpite.prediction_home;
           goalsAway = palpite.prediction_away;
         }
 
-        // Se o jogo não aconteceu na vida real e ele não palpitou, fica sem somar na tabela simulada
         if (match.status !== 'FT' && !temPalpite) {
           teamsStats[match.home.id].semPalpite += 1;
           teamsStats[match.away.id].semPalpite += 1;
           return; 
         }
 
-        // Atualiza jogos e gols pro cenário simulado
         teamsStats[match.home.id].jogos += 1;
         teamsStats[match.away.id].jogos += 1;
         teamsStats[match.home.id].gf += goalsHome;
@@ -143,7 +162,6 @@ export default function WhatIf() {
         teamsStats[match.away.id].gf += goalsAway;
         teamsStats[match.away.id].ga += goalsHome;
 
-        // Cálculo de V-E-D do cenário simulado
         if (football) {
           if (goalsHome > goalsAway) {
             teamsStats[match.home.id].w += 1;
@@ -160,7 +178,6 @@ export default function WhatIf() {
             teamsStats[match.away.id].pts += 1;
           }
         } else {
-          // Regra NHL (2pts Win, 1pt OTL, 0pts Loss)
           if (goalsHome > goalsAway) {
             teamsStats[match.home.id].w += 1;
             teamsStats[match.home.id].pts += 2;
@@ -182,56 +199,56 @@ export default function WhatIf() {
           }
         }
 
-        // --- CÁLCULO DE ACERTOS DO JOGADOR (Comparando Palpite vs Vida Real se houver jogo encerrado) ---
         if (match.status === 'FT' && temPalpite) {
           const realH = match.goals_home;
           const realA = match.goals_away;
           const palpH = palpite.prediction_home;
           const palpA = palpite.prediction_away;
 
-          // Sinais matemáticos para capturar a tendência do placar:
-          // Maior que zero -> Mandante venceu | Menor que zero -> Visitante venceu | Zero -> Empate
           const tendenciaReal = Math.sign(realH - realA);
           const tendenciaPalp = Math.sign(palpH - palpA);
 
-          // 1. Cravada Exata (Placar idêntico)
           if (realH === palpH && realA === palpA) {
             teamsStats[match.home.id].cravada += 1;
             teamsStats[match.away.id].cravada += 1;
             
-            teamsStats[match.home.id].acertoW += 1;
-            teamsStats[match.away.id].acertoW += 1;
+            if (football && tendenciaReal === 0) {
+              teamsStats[match.home.id].acertoD += 1;
+              teamsStats[match.away.id].acertoD += 1;
+            } else {
+              teamsStats[match.home.id].acertoW += 1;
+              teamsStats[match.away.id].acertoW += 1;
+            }
             
             teamsStats[match.home.id].acertoGols += 1;
             teamsStats[match.away.id].acertoGols += 1;
           } else {
-            // 2. Acertou apenas a tendência do resultado (Quem venceu ou se deu empate)
             if (tendenciaReal === tendenciaPalp) {
-              teamsStats[match.home.id].acertoW += 1;
-              teamsStats[match.away.id].acertoW += 1;
+              if (football && tendenciaReal === 0) {
+                teamsStats[match.home.id].acertoD += 1;
+                teamsStats[match.away.id].acertoD += 1;
+              } else {
+                teamsStats[match.home.id].acertoW += 1;
+                teamsStats[match.away.id].acertoW += 1;
+              }
             } else {
-              // 3. Errou o vencedor/empate (Registra como Acerto de Derrota para as duas equipes envolvidas)
               teamsStats[match.home.id].acertoL += 1;
               teamsStats[match.away.id].acertoL += 1;
             }
 
-            // 4. Checagem individual de gols (Mesmo sem cravar o placar inteiro)
             if (realH === palpH) teamsStats[match.home.id].acertoGols += 1;
             if (realA === palpA) teamsStats[match.away.id].acertoGols += 1;
           }
         }
       });
 
-      // Transforma o objeto em array e calcula saldos finais e ordenação competitiva
       const finalArray = Object.values(teamsStats).map(t => {
         const diff = t.gf - t.ga;
         const pPct = t.jogos > 0 ? (t.pts / (t.jogos * 2)).toFixed(2) : "0,00";
         return { ...t, diff, pPct };
       });
 
-      // Ordenação Padrão: Pontos -> Vitórias -> Saldo de Gols
       finalArray.sort((a, b) => b.pts - a.pts || b.w - a.w || b.diff - a.diff);
-
       setTabelaCalculada(finalArray);
     } catch (err) {
       console.error("Erro ao simular cenário 'E se?':", err);
@@ -240,17 +257,21 @@ export default function WhatIf() {
     }
   }
 
-  // Filtragem Dinâmica em memória para o cenário da NHL
   const tabelaFiltrada = tabelaCalculada.filter(t => {
-    if (isFootball) return true;
-    const bateConf = filtroConferencia === 'Todas' || t.conferencia === filtroConferencia;
-    const bateDiv = filtroDivisao === 'Todas' || t.divisao === filtroDivisao;
-    return bateConf && bateDiv;
+    if (!isFootball) { 
+      const bateConf = filtroConferencia === 'Todas' || t.conferencia === filtroConferencia;
+      const bateDiv = filtroDivisao === 'Todas' || t.divisao === filtroDivisao;
+      return bateConf && bateDiv;
+    }
+    if (isWorldCup) { 
+      return filtroGrupo === 'Todos' || t.grupo === filtroGrupo;
+    }
+    return true;
   });
 
   if (loading) return (
     <div className="min-h-screen bg-[#0A0E2A] text-[#0077FF] flex items-center justify-center font-black animate-pulse tracking-widest">
-      PROJETANDO CENÁRIO FUTURO...
+      PROJETANDO CENÁRIO ALTERNATIVO...
     </div>
   );
 
@@ -298,25 +319,44 @@ export default function WhatIf() {
         </div>
       )}
 
+      {/* FILTROS EXCLUSIVOS COPA DO MUNDO */}
+      {isWorldCup && (
+        <div className="max-w-7xl mx-auto mb-6 bg-[#1A1C3A] p-4 rounded-[25px] border border-[#26283A]">
+          <label className="block text-[8px] font-black uppercase text-gray-400 mb-2 pl-1 tracking-wider">Grupo da Copa</label>
+          <select 
+            value={filtroGrupo} 
+            onChange={e => setFiltroGrupo(e.target.value)}
+            className="w-full bg-[#0A0E2A] border border-[#26283A] text-xs font-bold rounded-xl p-3 outline-none text-white focus:border-[#0077FF]"
+          >
+            <option value="Todos">Todos os Grupos</option>
+            {["Grupo A", "Grupo B", "Grupo C", "Grupo D", "Grupo E", "Grupo F", "Grupo G", "Grupo H", "Grupo I", "Grupo J", "Grupo K", "Grupo L"].map(g => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* TABELA DE CLASSIFICAÇÃO PROJETADA */}
       <div className="max-w-7xl mx-auto bg-[#1A1C3A] border border-[#26283A] rounded-[35px] shadow-2xl overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+          <table className="w-full text-left border-collapse min-w-[1100px]">
             <thead>
               <tr className="bg-[#0A0E2A] border-b border-[#26283A] text-gray-400 text-[9px] font-black uppercase italic tracking-wider">
                 <th className="py-4 pl-6 w-12 text-center">Pos</th>
                 <th className="py-4 pl-4 min-w-[180px]">Time</th>
+                {isWorldCup && <th className="py-4 text-center">Grupo</th>}
                 <th className="py-4 text-center">Jogos</th>
-                <th className="py-4 text-center">W</th>
+                <th className="py-4 text-center">V</th>
                 <th className="py-4 text-center">{isFootball ? 'E' : 'OTL'}</th>
-                <th className="py-4 text-center">L</th>
+                <th className="py-4 text-center">D</th>
                 <th className="py-4 text-center text-white bg-[#0077FF]/20 px-2">PTS</th>
                 {!isFootball && <th className="py-4 text-center">P%</th>}
                 <th className="py-4 text-center">GF</th>
                 <th className="py-4 text-center">GA</th>
                 <th className="py-4 text-center">DIFF</th>
-                <th className="py-4 text-center text-[#55DD55] bg-green-500/5">Acerto W</th>
-                <th className="py-4 text-center text-[#FF5555] bg-red-500/5">Acerto L</th>
+                <th className="py-4 text-center text-[#55DD55] bg-green-500/5">Acerto V</th>
+                {isFootball && <th className="py-4 text-center text-[#55DDDD] bg-cyan-500/5">Acerto E</th>}
+                <th className="py-4 text-center text-[#FF5555] bg-red-500/5">Acerto D</th>
                 <th className="py-4 text-center text-amber-400 bg-amber-500/5">Acerto Gols</th>
                 <th className="py-4 text-center text-[#0077FF] bg-[#0077FF]/5">Cravada</th>
                 <th className="py-4 text-center text-gray-500 pr-6">S/ Palpite</th>
@@ -330,6 +370,7 @@ export default function WhatIf() {
                     <img src={team.logo} className="w-6 h-6 object-contain" alt="" />
                     <span className="uppercase tracking-tight truncate text-white">{team.name}</span>
                   </td>
+                  {isWorldCup && <td className="py-4 text-center font-mono text-[10px] text-gray-400 uppercase tracking-tight">{team.grupo}</td>}
                   <td className="py-4 text-center opacity-80">{team.jogos}</td>
                   <td className="py-4 text-center font-black text-white">{team.w}</td>
                   <td className="py-4 text-center opacity-80">{isFootball ? team.d : team.otl}</td>
@@ -342,6 +383,7 @@ export default function WhatIf() {
                     {team.diff > 0 ? `+${team.diff}` : team.diff}
                   </td>
                   <td className="py-4 text-center text-green-400 bg-green-500/5 font-black">{team.acertoW}</td>
+                  {isFootball && <td className="py-4 text-center text-cyan-400 bg-cyan-500/5 font-black">{team.acertoD}</td>}
                   <td className="py-4 text-center text-red-400 bg-red-500/5 font-black">{team.acertoL}</td>
                   <td className="py-4 text-center text-amber-400 bg-amber-500/5 font-black">{team.acertoGols}</td>
                   <td className="py-4 text-center text-[#0077FF] bg-[#0077FF]/5 font-black text-sm">{team.cravada}</td>

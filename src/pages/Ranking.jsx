@@ -171,13 +171,13 @@ export default function Ranking() {
       <div className="max-w-2xl mx-auto grid grid-cols-2 gap-2 mb-6 bg-[#1A1C3A] p-1.5 rounded-2xl border border-[#26283A]">
         <button 
           onClick={() => setActiveTab('liga')}
-          className={`py-3 rounded-xl font-black text-xs uppercase italic tracking-tight transition-all ${activeTab === 'liga' ? 'bg-[#0077FF] text-white' : 'text-gray-400'}`}
+          className={`py-3 rounded-xl font-black text-xs uppercase tracking-tight transition-all ${activeTab === 'liga' ? 'bg-[#0077FF] text-white' : 'text-gray-400'}`}
         >
           🏆 Ranking da Liga
         </button>
         <button 
           onClick={() => setActiveTab('global')}
-          className={`py-3 rounded-xl font-black text-xs uppercase italic tracking-tight transition-all ${activeTab === 'global' ? 'bg-[#0077FF] text-white' : 'text-gray-400'}`}
+          className={`py-3 rounded-xl font-black text-xs uppercase tracking-tight transition-all ${activeTab === 'global' ? 'bg-[#0077FF] text-white' : 'text-gray-400'}`}
         >
           🌍 Geral do Aplicativo
         </button>
@@ -265,36 +265,42 @@ export default function Ranking() {
 // Sub-componente de Card isolado para reaproveitamento limpo de layout
 function RankingCard({ pos, name, isUser, score, scoreLabel, cravadas, vencedores, gols, jogos }) {
   return (
-    <div className={`relative overflow-hidden p-5 rounded-[30px] border transition-all duration-300 ${isUser ? 'bg-[#0077FF] border-white shadow-[0_0_25px_rgba(0,119,255,0.4)] scale-[1.01] z-10' : 'bg-[#1A1C3A] border-[#26283A]'}`}>
+    <div className={`relative overflow-hidden p-5 rounded-[30px] border transition-all duration-300 ${isUser ? 'bg-[#0077FF] border-white shadow-[0_0_25px_rgba(0,119,255,0.3)] scale-[1.02]' : 'bg-[#1A1C3A] border-[#26283A]'}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-4">
           <span className={`font-black italic text-xl ${isUser ? 'text-white' : 'text-[#0077FF]'} opacity-50`}>{pos}º</span>
           <div className="flex flex-col">
-            <span className="font-black uppercase text-sm tracking-tighter italic leading-none">{name}</span>
+            <span className={`font-black uppercase text-sm tracking-tighter italic leading-none ${isUser ? 'text-white' : 'text-white'}`}>{name}</span>
             {isUser && <span className="text-[7px] font-black uppercase text-white/70 tracking-widest mt-1">VOCÊ</span>}
           </div>
         </div>
+
         <div className="text-right">
-          <span className="block font-black text-2xl italic leading-none">{score}</span>
+          <span className={`block font-black text-2xl italic leading-none ${isUser ? 'text-white' : 'text-white'}`}>{score}</span>
           <span className={`text-[8px] font-black uppercase tracking-wider ${isUser ? 'text-white/80' : 'text-[#0077FF]'}`}>{scoreLabel}</span>
         </div>
       </div>
+
+      {/* Grid de Estatísticas com Contraste Ajustado para o Usuário Ativo */}
       <div className={`grid grid-cols-4 gap-2 pt-3 border-t ${isUser ? 'border-white/20' : 'border-white/5'} text-center`}>
         <div>
-          <span className="block font-black text-xs italic">{cravadas}</span>
-          <span className="block text-[7px] font-black text-gray-500 uppercase tracking-tight">Cravadas</span>
+          <span className={`block font-black text-xs italic ${isUser ? 'text-[#0A0E2A]' : 'text-white'}`}>{cravadas}</span>
+          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-[#0A0E2A]/70' : 'text-gray-500'}`}>Cravadas</span>
         </div>
+
         <div>
-          <span className="block font-black text-xs italic">{vencedores}</span>
-          <span className="block text-[7px] font-black text-gray-500 uppercase tracking-tight">Vencedor</span>
+          <span className={`block font-black text-xs italic ${isUser ? 'text-[#0A0E2A]' : 'text-white'}`}>{vencedores}</span>
+          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-[#0A0E2A]/70' : 'text-gray-500'}`}>Vencedor</span>
         </div>
+
         <div>
-          <span className="block font-black text-xs italic">{gols}</span>
-          <span className="block text-[7px] font-black text-gray-500 uppercase tracking-tight">Acerto Gols</span>
+          <span className={`block font-black text-xs italic ${isUser ? 'text-[#0A0E2A]' : 'text-white'}`}>{gols}</span>
+          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-[#0A0E2A]/70' : 'text-gray-500'}`}>Acerto Gols</span>
         </div>
+
         <div>
-          <span className="block font-black text-xs italic">{jogos}</span>
-          <span className="block text-[7px] font-black text-gray-500 uppercase tracking-tight">Palpites</span>
+          <span className={`block font-black text-xs italic ${isUser ? 'text-[#0A0E2A]' : 'text-white'}`}>{jogos}</span>
+          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-[#0A0E2A]/70' : 'text-gray-500'}`}>Palpites</span>
         </div>
       </div>
     </div>

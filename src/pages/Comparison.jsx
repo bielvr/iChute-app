@@ -7,26 +7,35 @@ import Logo from '../components/Logo';
 export default function Comparison() {
   const { ligaId } = useParams();
   const navigate = useNavigate();
-  const scrollRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
-  const [loadingPreds, setLoadingPreds] = useState(false); // Novo loading específico para a troca de abas
+  const [loadingPreds, setLoadingPreds] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
   const [jogos, setJogos] = useState([]);
   const [palpitesMatriz, setPalpitesMatriz] = useState({});
   const [sportId, setSportId] = useState(null);
-  
-  const [tabs, setTabs] = useState([]); 
-  const [activeTab, setActiveTab] = useState(null);
+  const [officialLeagueId, setOfficialLeagueId] = useState(null);
+  const [temporadaAtiva, setTemporadaAtiva] = useState('');
 
-  // EFEITO 1: Carregar estrutura da Liga, Membros e Partidas
+  // Lógica de Abas e Filtros Adaptados
+  const [isFootball, setIsFootball] = useState(false);
+  const [listaRodadas, setListaRodadas] = useState([]);
+  const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
+  const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
+
+  // Estados do Calendário Customizado Dropdown
+  const [calendarioAberto, setCalendarioAberto] = useState(false);
+  const [mesAtualCalendario, setMesAtualCalendario] = useState(new Date());
+  const [contagemJogosPorDia, setContagemJogosPorDia] = useState({});
+
+  // EFEITO 1: Carregar estrutura da Liga, Membros e Partidas passadas/atuais
   useEffect(() => {
     async function loadBaseData() {
       if (!ligaId) return;
       setLoading(true);
       
       try {
-        // 1. Buscar membros da liga (Tabela: user_league_members)
+        // 1. Buscar membros da liga
         const { data: membros, error: errMembros } = await supabase
           .from('user_league_members')
           .select('user_id, users(name)')
@@ -35,7 +44,7 @@ export default function Comparison() {
         if (errMembros) throw errMembros;
         setUsuarios(membros?.map(m => ({ id: m.user_id, name: m.users?.name || 'Usuário' })) || []);
 
-        // 2. Info da Liga e Sport (Tabela: user_leagues relacionando com leagues)
+        // 2. Info da Liga e Sport
         const { data: ligaInfo, error: errLiga } = await supabase
           .from('user_leagues')
           .select(`
@@ -49,38 +58,77 @@ export default function Comparison() {
 
         const sId = ligaInfo.leagues?.sport_id;
         setSportId(sId);
+        const football = sId === 1;
+        setIsFootball(football);
+        setOfficialLeagueId(ligaInfo.official_league_id);
 
-        // 3. Buscar Jogos (Tabela: matches)
-        const agora = new Date().toISOString();
-        const { data: matches, error: errMatches } = await supabase
+        // Buscar última temporada disponível
+        const { data: maxSeasonData } = await supabase
           .from('matches')
-          .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
+          .select('season')
           .eq('league_id', ligaInfo.official_league_id)
-          .lte('date', agora) // Apenas jogos que já começaram ou passaram
-          .order('date', { ascending: true });
-
-        if (errMatches) throw errMatches;
-
-        // --- LÓGICA DE FUSO HORÁRIO E ABAS ---
-        const listaProcessada = (matches || []).map(jogo => ({
-          ...jogo,
-          // Cria uma chave de data (AAAA-MM-DD) baseada no fuso horário LOCAL do navegador
-          localDateKey: new Date(jogo.date).toLocaleDateString('sv-SE') 
-        }));
+          .order('season', { ascending: false })
+          .limit(1);
         
-        setJogos(listaProcessada);
+        const ultimaTemporada = maxSeasonData && maxSeasonData.length > 0 ? maxSeasonData[0].season : new Date().getFullYear().toString();
+        setTemporadaAtiva(ultimaTemporada);
 
-        if (sId === 2) { // NHL (Agrupamento por Datas Locais)
-          const datasUnicas = [...new Set(listaProcessada.map(j => j.localDateKey))].sort();
-          setTabs(datasUnicas);
+        const agora = new Date().toISOString();
+
+        if (football) {
+          // Coletar rodadas disponíveis
+          const { data: rounds } = await supabase.from('matches')
+            .select('round')
+            .eq('league_id', ligaInfo.official_league_id)
+            .eq('season', ultimaTemporada)
+            .order('round', { ascending: true });
           
-          // Tenta focar no dia de hoje (local) ou na última data com jogos
-          const hojeLocal = new Date().toLocaleDateString('sv-SE');
-          setActiveTab(datasUnicas.includes(hojeLocal) ? hojeLocal : datasUnicas[datasUnicas.length - 1]);
-        } else { // Futebol (Agrupamento por Rodadas)
-          const rodadas = [...new Set(listaProcessada.map(m => m.round))].sort((a, b) => b - a);
-          setTabs(rodadas);
-          setActiveTab(rodadas[0]);
+          const uniqueRounds = [...new Set(rounds?.map(r => r.round))];
+          setListaRodadas(uniqueRounds);
+
+          // Localiza a rodada atual baseada no tempo real
+          const { data: currentMatch } = await supabase.from('matches')
+            .select('round, date')
+            .eq('league_id', ligaInfo.official_league_id)
+            .eq('season', ultimaTemporada)
+            .lte('date', agora)
+            .order('date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          let targetRound = currentMatch?.round || uniqueRounds[0];
+          let dataAlvo = new Date().toLocaleDateString('en-CA');
+
+          if (currentMatch) {
+            dataAlvo = new Date(currentMatch.date).toLocaleDateString('en-CA');
+          }
+
+          setRodadaSelecionada(targetRound);
+          setDataSelecionada(dataAlvo);
+          setMesAtualCalendario(new Date(dataAlvo + 'T12:00:00'));
+
+          await buscarContagemJogos(ligaInfo.official_league_id, ultimaTemporada, true, targetRound);
+          fetchMatches(ligaInfo.official_league_id, ultimaTemporada, dataAlvo);
+        } else {
+          // Outros Esportes: Calendário Geral de datas passadas
+          await buscarContagemJogos(ligaInfo.official_league_id, ultimaTemporada, false, null);
+
+          const { data: ultimoJogoPassado } = await supabase.from('matches')
+            .select('date')
+            .eq('league_id', ligaInfo.official_league_id)
+            .eq('season', ultimaTemporada)
+            .lte('date', agora)
+            .order('date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const dataAlvo = ultimoJogoPassado 
+            ? new Date(ultimoJogoPassado.date).toLocaleDateString('en-CA') 
+            : new Date().toLocaleDateString('en-CA');
+
+          setDataSelecionada(dataAlvo);
+          setMesAtualCalendario(new Date(dataAlvo + 'T12:00:00'));
+          fetchMatches(ligaInfo.official_league_id, ultimaTemporada, dataAlvo);
         }
 
       } catch (err) {
@@ -92,29 +140,61 @@ export default function Comparison() {
     loadBaseData();
   }, [ligaId]);
 
-  // Filtragem local dos jogos baseada na aba ativa (necessário para o Efeito 2 e Renderização)
-  const jogosFiltrados = jogos.filter(j => 
-    sportId === 2 ? j.localDateKey === activeTab : j.round === activeTab
-  );
+  // Função para contar volume de jogos por dia no calendário
+  async function buscarContagemJogos(offId, seasonStr, footballMode, roundValue) {
+    try {
+      const agora = new Date().toISOString();
+      let query = supabase.from('matches')
+        .select('date')
+        .eq('league_id', offId)
+        .eq('season', seasonStr)
+        .lte('date', agora); // Apenas jogos iniciados ou ocorridos
 
-  // EFEITO 2: Buscar Palpites Filtrados por Jogo quando mudar de aba
-  useEffect(() => {
-    async function loadFilteredPredictions() {
-      if (!ligaId || jogosFiltrados.length === 0 || !activeTab) return;
+      if (footballMode && roundValue) {
+        query = query.eq('round', roundValue);
+      }
       
-      setLoadingPreds(true);
-      try {
-        // Mapeia estritamente os IDs dos confrontos renderizados na tela para buscar no banco
-        const matchIds = jogosFiltrados.map(j => j.id);
+      const { data } = await query;
+      const mapaContagem = {};
+      data?.forEach(j => {
+        const dStr = new Date(j.date).toLocaleDateString('en-CA');
+        mapaContagem[dStr] = (mapaContagem[dStr] || 0) + 1;
+      });
+      setContagemJogosPorDia(mapaContagem);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
-        // 4. Buscar Palpites sob demanda (Tabela: predictions)
-        const { data: allPreds, error: errPreds } = await supabase
+  // Busca partidas do dia selecionado
+  async function fetchMatches(offId, seasonStr, dateStr) {
+    setLoadingPreds(true);
+    try {
+      const inicio = new Date(`${dateStr}T00:00:00Z`);
+      const fim = new Date(inicio); 
+      fim.setHours(fim.getHours() + 36);
+
+      const { data: matchesData } = await supabase.from('matches')
+        .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
+        .eq('league_id', offId)
+        .eq('season', seasonStr)
+        .gte('date', inicio.toISOString())
+        .lte('date', fim.toISOString())
+        .order('date', { ascending: true });
+
+      const filtrados = (matchesData || []).filter(j => 
+        new Date(j.date).toLocaleDateString('en-CA') === dateStr
+      );
+      
+      setJogos(filtrados);
+
+      if (filtrados.length > 0) {
+        const matchIds = filtrados.map(j => j.id);
+        const { data: allPreds } = await supabase
           .from('predictions')
           .select('*')
           .eq('user_league_id', ligaId)
-          .in('match_id', matchIds); // Restringe a query apenas ao escopo necessário
-
-        if (errPreds) throw errPreds;
+          .in('match_id', matchIds);
 
         const matriz = {};
         allPreds?.forEach(p => {
@@ -126,26 +206,86 @@ export default function Comparison() {
           };
         });
         setPalpitesMatriz(matriz);
-
-      } catch (err) {
-        console.error("Erro ao buscar palpites da rodada:", err.message);
-      } finally {
-        setLoadingPreds(false);
+      } else {
+        setPalpitesMatriz({});
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingPreds(false);
     }
+  }
 
-    loadFilteredPredictions();
-  }, [activeTab, jogos, ligaId]);
+  const handleMudancaRodada = async (novaRodada) => {
+    setRodadaSelecionada(novaRodada);
+    setLoadingPreds(true);
+    
+    await buscarContagemJogos(officialLeagueId, temporadaAtiva, true, novaRodada);
+    
+    // Acha o primeiro dia com jogo disponível na nova rodada para mover o calendário
+    const agora = new Date().toISOString();
+    const { data: primeiroJogo } = await supabase.from('matches')
+      .select('date')
+      .eq('league_id', officialLeagueId)
+      .eq('season', temporadaAtiva)
+      .eq('round', novaRodada)
+      .lte('date', agora)
+      .order('date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-  // Scroll automático para o final nas abas de data (NHL)
-  useEffect(() => {
-    if (sportId === 2 && scrollRef.current) {
-      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    let novaDataFoco = new Date().toLocaleDateString('en-CA');
+    if (primeiroJogo) {
+      novaDataFoco = new Date(primeiroJogo.date).toLocaleDateString('en-CA');
     }
-  }, [tabs, sportId]);
+    
+    setDataSelecionada(novaDataFoco);
+    setMesAtualCalendario(new Date(novaDataFoco + 'T12:00:00'));
+    fetchMatches(officialLeagueId, temporadaAtiva, novaDataFoco);
+  };
+
+  // --- MATRIZ GERADORA DO CALENDÁRIO ---
+  const gerarDiasDoCalendario = () => {
+    const ano = mesAtualCalendario.getFullYear();
+    const mes = mesAtualCalendario.getMonth();
+    
+    const primeiroDiaDoMes = new Date(ano, mes, 1).getDay();
+    const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
+    
+    const painelDias = [];
+    for (let i = 0; i < primeiroDiaDoMes; i++) {
+      painelDias.push(null);
+    }
+    
+    for (let dia = 1; dia <= totalDiasNoMes; dia++) {
+      const mesFormatado = String(mes + 1).padStart(2, '0');
+      const diaFormatado = String(dia).padStart(2, '0');
+      const dataStringCompleta = `${ano}-${mesFormatado}-${diaFormatado}`;
+      
+      painelDias.push({
+        dia,
+        dataString: dataStringCompleta,
+        qtdJogos: contagemJogosPorDia[dataStringCompleta] || 0
+      });
+    }
+    return painelDias;
+  };
+
+  const mudarMes = (direcao) => {
+    const novoMes = new Date(mesAtualCalendario);
+    novoMes.setMonth(novoMes.getMonth() + direcao);
+    setMesAtualCalendario(novoMes);
+  };
+
+  const formatarDataBarraSecundaria = (strData) => {
+    if (!strData) return '';
+    const [ano, mes, dia] = strData.split('-');
+    const meses = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+    return `${dia} DE ${meses[parseInt(mes) - 1]} DE ${ano}`;
+  };
 
   const getPointTheme = (pts) => {
-    if (pts >= 3) return { bg: "bg-[#39FF14]", text: "text-[F0F8FF]", border: "border-[#39FF14]" };
+    if (pts >= 3) return { bg: "bg-[#39FF14]", text: "text-[#0A0E2A]", border: "border-[#39FF14]" };
     if (pts === 2) return { bg: "bg-[#FAFF00]/40", text: "text-[B0C4DE]", border: "border-[#FAFF00]/50" };
     if (pts === 1) return { bg: "bg-[#0077FF]/40", text: "text-[F0F8FF]", border: "border-[#0077FF]/50" };
     return { bg: "bg-[#0A0E2A]", text: "text-white/20", border: "border-transparent" };
@@ -159,51 +299,122 @@ export default function Comparison() {
 
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans">
-      <header className="max-w-2xl mx-auto flex justify-between items-center mb-6">
-        <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic transition-all hover:bg-[#0077FF]">
-          ← VOLTAR
-        </button>
-        <div className="text-right">
-          <Logo size="sm" />
-          <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Liga</span>
+      <header className="max-w-2xl mx-auto flex flex-col gap-3 mb-6">
+        <div className="flex justify-between items-center mb-2">
+          <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic transition-all hover:bg-[#0077FF]">
+            ← VOLTAR
+          </button>
+          <div className="text-right">
+            <Logo size="sm" />
+            <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Liga</span>
+          </div>
+        </div>
+
+        {/* BARRA 1: Seletor de Rodadas (Apenas Futebol) */}
+        {isFootball && (
+          <select 
+            value={rodadaSelecionada} 
+            onChange={(e) => handleMudancaRodada(e.target.value)}
+            className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none"
+          >
+            {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
+          </select>
+        )}
+
+        {/* BARRA 2: Calendário Customizado Dropdown */}
+        <div className="relative w-full">
+          <div 
+            onClick={() => setCalendarioAberto(!calendarioAberto)}
+            className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-[#0077FF] flex justify-between items-center cursor-pointer select-none"
+          >
+            <span className="text-sm tracking-wide">{formatarDataBarraSecundaria(dataSelecionada)}</span>
+            <span className={`text-xs transition-transform duration-300 ${calendarioAberto ? 'rotate-180' : ''}`}>▼</span>
+          </div>
+
+          {calendarioAberto && (
+            <div className="absolute top-[115%] left-0 w-full bg-[#141733] border border-[#26283A] rounded-[25px] p-4 z-50 shadow-2xl animate-fadeIn">
+              <div className="flex justify-between items-center mb-4 px-2">
+                <button onClick={() => mudarMes(-1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">‹</button>
+                <span className="font-black italic uppercase text-xs sm:text-sm tracking-wide text-white">
+                  {mesAtualCalendario.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </span>
+                <button onClick={() => mudarMes(1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">›</button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black text-gray-500 uppercase mb-2">
+                <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-y-3 gap-x-1">
+                {gerarDiasDoCalendario().map((item, index) => {
+                  if (!item) return <div key={`empty-${index}`} />;
+                  
+                  const isHoje = item.dataString === new Date().toLocaleDateString('en-CA');
+                  const isSelecionado = item.dataString === dataSelecionada;
+
+                  return (
+                    <button
+                      key={item.dataString}
+                      onClick={() => {
+                        setDataSelecionada(item.dataString);
+                        setCalendarioAberto(false);
+                        fetchMatches(officialLeagueId, temporadaAtiva, item.dataString);
+                      }}
+                      className={`relative flex flex-col items-center justify-center py-2 rounded-xl transition-all ${
+                        isSelecionado 
+                          ? 'bg-[#0077FF] text-white font-black scale-105' 
+                          : isHoje 
+                          ? 'bg-[#1A1C3A] border border-[#0077FF] text-white' 
+                          : 'hover:bg-[#1A1C3A] text-gray-300'
+                      }`}
+                    >
+                      <span className="text-xs font-bold">{item.dia}</span>
+                      
+                      {item.qtdJogos > 0 && (
+                        <span className={`text-[8px] mt-0.5 block w-3.5 h-3.5 leading-[14px] text-center rounded-full font-black ${
+                          isSelecionado ? 'bg-white text-[#0077FF]' : 'bg-[#26283A] text-gray-400'
+                        }`}>
+                          {item.qtdJogos}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 pt-2 border-t border-[#26283A] flex justify-center">
+                <button 
+                  onClick={() => {
+                    const hoje = new Date().toLocaleDateString('en-CA');
+                    setDataSelecionada(hoje);
+                    setMesAtualCalendario(new Date());
+                    setCalendarioAberto(false);
+                    fetchMatches(officialLeagueId, temporadaAtiva, hoje);
+                  }}
+                  className="bg-[#1A1C3A] border border-[#26283A] text-white px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider"
+                >
+                  Hoje
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Seletor de Rodada ou Data */}
-      <div className="max-w-2xl mx-auto mb-8 overflow-hidden">
-        <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-shrink-0 px-5 py-2.5 rounded-xl font-black italic text-[10px] border transition-all ${
-                activeTab === tab ? 'bg-[#0077FF] border-[#0077FF] text-white' : 'bg-[#1A1C3A] border-[#26283A] text-white/30'
-              }`}
-            >
-              {sportId === 2 
-                ? new Date(tab + 'T12:00:00').toLocaleDateString(undefined, {day:'2-digit', month:'2-digit'}) 
-                : `${tab}ª RODADA`
-              }
-            </button>
-          ))}
-        </div>
-      </div>
-
+      {/* Grid de Comparação de Palpites */}
       <div className="max-w-2xl mx-auto grid gap-6 relative">
-        {/* Loader sutil para feedback visual rápido durante a troca de abas */}
         {loadingPreds && (
           <div className="absolute inset-0 bg-[#0A0E2A]/60 backdrop-blur-sm flex items-center justify-center z-50 rounded-3xl min-h-[200px]">
             <div className="text-[#0077FF] text-[10px] font-black tracking-wider animate-pulse">ATUALIZANDO PALPITES...</div>
           </div>
         )}
 
-        {jogosFiltrados.length === 0 && (
-          <div className="text-center py-20 text-white/10 font-black italic uppercase tracking-widest">Nenhum resultado nesta rodada</div>
+        {jogos.length === 0 && (
+          <div className="text-center py-20 text-white/10 font-black italic uppercase tracking-widest">Nenhum resultado para este dia</div>
         )}
 
-        {jogosFiltrados.map((jogo) => (
+        {jogos.map((jogo) => (
           <div key={jogo.id} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px]">
-            {/* Placar Real (Tabela matches: goals_home / goals_away) */}
             <div className="flex justify-between items-center mb-6 bg-[#0A0E2A]/50 p-4 rounded-[20px]">
               <div className="flex flex-col items-center w-1/3">
                 <img src={jogo.home?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
@@ -220,7 +431,6 @@ export default function Comparison() {
               </div>
             </div>
 
-            {/* Lista de Palpites dos Amigos */}
             <div className="grid gap-2">
               {usuarios.map((u) => {
                 const p = palpitesMatriz[jogo.id]?.[u.id];
@@ -245,6 +455,16 @@ export default function Comparison() {
         ))}
       </div>
       <BottomNav />
+
+      <style dangerouslySetInnerHTML={{__html: `
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
+      `}} />
     </div>
   );
 }
