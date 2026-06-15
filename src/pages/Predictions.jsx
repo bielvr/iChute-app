@@ -310,6 +310,7 @@ export default function Predictions() {
       points_earned: 0
     };
 
+  // Restante da lógica inalterado
     try {
       const { error } = await supabase.from('predictions')
         .upsert([payload], { onConflict: 'user_id,match_id,user_league_id' });
@@ -394,18 +395,21 @@ export default function Predictions() {
           </div>
         </div>
 
-        {/* BARRA 1: Seletor de Rodadas (Apenas se for futebol) */}
+        {/* BARRA 1: Seletor de Rodadas (Apenas Futebol) - Com ícone padronizado */}
         {isFootball && (
-          <select 
-            value={rodadaSelecionada} 
-            onChange={(e) => handleMudancaRodada(e.target.value)}
-            className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none"
-          >
-            {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
-          </select>
+          <div className="relative w-full">
+            <select 
+              value={rodadaSelecionada} 
+              onChange={(e) => handleMudancaRodada(e.target.value)}
+              className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 pr-10 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none appearance-none cursor-pointer select-none text-sm tracking-wide"
+            >
+              {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
+            </select>
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#0077FF] pointer-events-none">▼</span>
+          </div>
         )}
 
-        {/* BARRA 2: Seletor de Dia Expandível (Presente em todos os esportes) */}
+        {/* BARRA 2: Calendário Customizado Dropdown - Com ícone padronizado */}
         <div className="relative w-full">
           <div 
             onClick={() => setCalendarioAberto(!calendarioAberto)}
@@ -415,10 +419,8 @@ export default function Predictions() {
             <span className={`text-xs transition-transform duration-300 ${calendarioAberto ? 'rotate-180' : ''}`}>▼</span>
           </div>
 
-          {/* Modal / Dropdown do Calendário */}
           {calendarioAberto && (
             <div className="absolute top-[115%] left-0 w-full bg-[#141733] border border-[#26283A] rounded-[25px] p-4 z-50 shadow-2xl animate-fadeIn">
-              {/* Controle do Mês */}
               <div className="flex justify-between items-center mb-4 px-2">
                 <button onClick={() => mudarMes(-1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">‹</button>
                 <span className="font-black italic uppercase text-xs sm:text-sm tracking-wide text-white">
@@ -427,12 +429,10 @@ export default function Predictions() {
                 <button onClick={() => mudarMes(1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">›</button>
               </div>
 
-              {/* Iniciais da semana */}
               <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black text-gray-500 uppercase mb-2">
                 <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
               </div>
 
-              {/* Dias */}
               <div className="grid grid-cols-7 gap-y-3 gap-x-1">
                 {gerarDiasDoCalendario().map((item, index) => {
                   if (!item) return <div key={`empty-${index}`} />;
@@ -458,7 +458,6 @@ export default function Predictions() {
                     >
                       <span className="text-xs font-bold">{item.dia}</span>
                       
-                      {/* Bolinha NHL de quantidade de jogos */}
                       {item.qtdJogos > 0 && (
                         <span className={`text-[8px] mt-0.5 block w-3.5 h-3.5 leading-[14px] text-center rounded-full font-black ${
                           isSelecionado ? 'bg-white text-[#0077FF]' : 'bg-[#26283A] text-gray-400'
@@ -471,7 +470,6 @@ export default function Predictions() {
                 })}
               </div>
 
-              {/* Botão Hoje */}
               <div className="mt-4 pt-2 border-t border-[#26283A] flex justify-center">
                 <button 
                   onClick={() => {
