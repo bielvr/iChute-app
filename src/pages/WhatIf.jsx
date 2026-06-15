@@ -39,7 +39,7 @@ const NHL_MAPPING = {
 const WORLD_CUP_MAPPING = {
   53: { grupo: "Grupo A" }, 54: { grupo: "Grupo E" }, 55: { grupo: "Grupo H" }, 56: { grupo: "Grupo J" },
   57: { grupo: "Grupo J" }, 58: { grupo: "Grupo D" }, 59: { grupo: "Grupo J" }, 60: { grupo: "Grupo G" },
-  61: { grupo: "Grupo B" }, 62: { grupo: "Grupo C" }, 63: { grupo: "Grupo H" }, 64: { grupo: "Grupo B" },
+  61: { grupo: "Grupo B" }, 62: { grupo: "Grupo C" }, 63: { grupo: "Grupo H" }, 64: { gateway: "Grupo B" },
   65: { grupo: "Grupo B" }, 66: { grupo: "Grupo K" }, 67: { grupo: "Grupo K" }, 68: { grupo: "Grupo A" },
   69: { grupo: "Grupo E" }, 70: { grupo: "Grupo L" }, 71: { grupo: "Grupo E" }, 72: { grupo: "Grupo G" },
   73: { grupo: "Grupo E" }, 74: { grupo: "Grupo C" }, 75: { grupo: "Grupo H" }, 76: { grupo: "Grupo D" },
@@ -89,7 +89,6 @@ export default function WhatIf() {
       setLigaNome(infoLiga.name);
       
       const football = infoLiga.leagues.sport_id === 1;
-      // Garante a verificação baseada na coluna correta mapeada pelo schema
       const worldCup = infoLiga.official_league_id === 12; 
       
       setIsFootball(football);
@@ -126,7 +125,7 @@ export default function WhatIf() {
             logo: team.url_logo,
             jogos: 0, w: 0, d: 0, l: 0, otl: 0,
             pts: 0, gf: 0, ga: 0,
-            acertoW: 0, acertoD: 0, acertoL: 0, acertoGols: 0, cravada: 0, semPalpite: 0,
+            acertoW: 0, acertoE: 0, acertoD: 0, acertoGols: 0, cravada: 0, semPalpite: 0,
             conferencia: nhlInfo.conf,
             divisao: nhlInfo.div,
             grupo: wcInfo.grupo
@@ -199,46 +198,40 @@ export default function WhatIf() {
           }
         }
 
+        // BLOCO CORRIGIDO: Cálculo de acertos baseado no palpite do Usuário
         if (match.status === 'FT' && temPalpite) {
           const realH = match.goals_home;
           const realA = match.goals_away;
           const palpH = palpite.prediction_home;
           const palpA = palpite.prediction_away;
 
-          const tendenciaReal = Math.sign(realH - realA);
+          const tendenciaReal = Math.sign(realH - realA); 
           const tendenciaPalp = Math.sign(palpH - palpA);
 
+          // 1. Cravada (Acerto Exato do Placar)
           if (realH === palpH && realA === palpA) {
             teamsStats[match.home.id].cravada += 1;
             teamsStats[match.away.id].cravada += 1;
-            
-            if (football && tendenciaReal === 0) {
-              teamsStats[match.home.id].acertoD += 1;
-              teamsStats[match.away.id].acertoD += 1;
+          }
+
+          // 2. Tendência (Vitória Casa, Empate ou Vitória Fora)
+          if (tendenciaReal === tendenciaPalp) {
+            if (tendenciaReal === 0) {
+              teamsStats[match.home.id].acertoE += 1;
+              teamsStats[match.away.id].acertoE += 1;
             } else {
               teamsStats[match.home.id].acertoW += 1;
               teamsStats[match.away.id].acertoW += 1;
             }
-            
-            teamsStats[match.home.id].acertoGols += 1;
-            teamsStats[match.away.id].acertoGols += 1;
           } else {
-            if (tendenciaReal === tendenciaPalp) {
-              if (football && tendenciaReal === 0) {
-                teamsStats[match.home.id].acertoD += 1;
-                teamsStats[match.away.id].acertoD += 1;
-              } else {
-                teamsStats[match.home.id].acertoW += 1;
-                teamsStats[match.away.id].acertoW += 1;
-              }
-            } else {
-              teamsStats[match.home.id].acertoL += 1;
-              teamsStats[match.away.id].acertoL += 1;
-            }
-
-            if (realH === palpH) teamsStats[match.home.id].acertoGols += 1;
-            if (realA === palpA) teamsStats[match.away.id].acertoGols += 1;
+            // Errou o vencedor ou errou o empate
+            teamsStats[match.home.id].acertoD += 1;
+            teamsStats[match.away.id].acertoD += 1;
           }
+
+          // 3. Acerto de Gols Isolados (Sempre computa se o número de gols bater)
+          if (realH === palpH) teamsStats[match.home.id].acertoGols += 1;
+          if (realA === palpA) teamsStats[match.away.id].acertoGols += 1;
         }
       });
 
@@ -383,8 +376,8 @@ export default function WhatIf() {
                     {team.diff > 0 ? `+${team.diff}` : team.diff}
                   </td>
                   <td className="py-4 text-center text-green-400 bg-green-500/5 font-black">{team.acertoW}</td>
-                  {isFootball && <td className="py-4 text-center text-cyan-400 bg-cyan-500/5 font-black">{team.acertoD}</td>}
-                  <td className="py-4 text-center text-red-400 bg-red-500/5 font-black">{team.acertoL}</td>
+                  {isFootball && <td className="py-4 text-center text-cyan-400 bg-cyan-500/5 font-black">{team.acertoE}</td>}
+                  <td className="py-4 text-center text-red-400 bg-red-500/5 font-black">{team.acertoD}</td>
                   <td className="py-4 text-center text-amber-400 bg-amber-500/5 font-black">{team.acertoGols}</td>
                   <td className="py-4 text-center text-[#0077FF] bg-[#0077FF]/5 font-black text-sm">{team.cravada}</td>
                   <td className="py-4 text-center text-gray-600 font-normal pr-6">{team.semPalpite}</td>

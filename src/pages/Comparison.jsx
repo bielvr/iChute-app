@@ -17,6 +17,13 @@ export default function Comparison() {
   const [officialLeagueId, setOfficialLeagueId] = useState(null);
   const [temporadaAtiva, setTemporadaAtiva] = useState('');
 
+  // Configurações customizadas de pontuação da liga do usuário
+  const [pontosConfig, setPontosConfig] = useState({
+    cravada: 3,
+    cheio: 2,
+    resultado: 1
+  });
+
   // Lógica de Abas e Filtros Adaptados
   const [isFootball, setIsFootball] = useState(false);
   const [listaRodadas, setListaRodadas] = useState([]);
@@ -28,7 +35,7 @@ export default function Comparison() {
   const [mesAtualCalendario, setMesAtualCalendario] = useState(new Date());
   const [contagemJogosPorDia, setContagemJogosPorDia] = useState({});
 
-  // EFEITO 1: Carregar estrutura da Liga, Membros e Partidas passadas/atuais
+  // EFEITO 1: Carregar estrutura da Liga, Configurações de Pontos, Membros e Partidas
   useEffect(() => {
     async function loadBaseData() {
       if (!ligaId) return;
@@ -44,17 +51,27 @@ export default function Comparison() {
         if (errMembros) throw errMembros;
         setUsuarios(membros?.map(m => ({ id: m.user_id, name: m.users?.name || 'Usuário' })) || []);
 
-        // 2. Info da Liga e Sport
+        // 2. Info da Liga, Sport e Regras customizadas de Pontuação
         const { data: ligaInfo, error: errLiga } = await supabase
           .from('user_leagues')
           .select(`
             official_league_id,
-            leagues:official_league_id (sport_id)
+            leagues:official_league_id (sport_id),
+            leagues_config:config_id (exact_score_points, winner_and_one_goal_points, winner_only_points)
           `)
           .eq('id', ligaId)
           .single();
 
         if (errLiga || !ligaInfo) throw new Error("Liga não encontrada");
+
+        // Alimentar o estado de regras com os pontos configurados pelo dono da liga
+        if (ligaInfo.leagues_config) {
+          setPontosConfig({
+            cravada: ligaInfo.leagues_config.exact_score_points ?? 3,
+            cheio: ligaInfo.leagues_config.winner_and_one_goal_points ?? 2,
+            resultado: ligaInfo.leagues_config.winner_only_points ?? 1
+          });
+        }
 
         const sId = ligaInfo.leagues?.sport_id;
         setSportId(sId);
@@ -148,7 +165,7 @@ export default function Comparison() {
         .select('date')
         .eq('league_id', offId)
         .eq('season', seasonStr)
-        .lte('date', agora); // Apenas jogos iniciados ou ocorridos
+        .lte('date', agora);
 
       if (footballMode && roundValue) {
         query = query.eq('round', roundValue);
@@ -222,7 +239,6 @@ export default function Comparison() {
     
     await buscarContagemJogos(officialLeagueId, temporadaAtiva, true, novaRodada);
     
-    // Acha o primeiro dia com jogo disponível na nova rodada para mover o calendário
     const agora = new Date().toISOString();
     const { data: primeiroJogo } = await supabase.from('matches')
       .select('date')
@@ -244,7 +260,6 @@ export default function Comparison() {
     fetchMatches(officialLeagueId, temporadaAtiva, novaDataFoco);
   };
 
-  // --- MATRIZ GERADORA DO CALENDÁRIO ---
   const gerarDiasDoCalendario = () => {
     const ano = mesAtualCalendario.getFullYear();
     const mes = mesAtualCalendario.getMonth();
@@ -284,10 +299,17 @@ export default function Comparison() {
     return `${dia} DE ${meses[parseInt(mes) - 1]} DE ${ano}`;
   };
 
+  // Tema de cores adaptativo baseado nas pontuações configuradas dinamicamente
   const getPointTheme = (pts) => {
-    if (pts >= 3) return { bg: "bg-[#39FF14]", text: "text-[#0A0E2A]", border: "border-[#39FF14]" };
-    if (pts === 2) return { bg: "bg-[#FAFF00]/40", text: "text-[B0C4DE]", border: "border-[#FAFF00]/50" };
-    if (pts === 1) return { bg: "bg-[#0077FF]/40", text: "text-[F0F8FF]", border: "border-[#0077FF]/50" };
+    if (pts > 0 && pts === pontosConfig.cravada) {
+      return { bg: "bg-[#39FF14]", text: "text-white", border: "border-[#39FF14]" };
+    }
+    if (pts > 0 && pts === pontosConfig.cheio) {
+      return { bg: "bg-[#FAFF00]/40", text: "text-[B0C4DE]", border: "border-[#FAFF00]/50" };
+    }
+    if (pts > 0 && pts === pontosConfig.resultado) {
+      return { bg: "bg-[#0077FF]/40", text: "text-[F0F8FF]", border: "border-[#0077FF]/50" };
+    }
     return { bg: "bg-[#0A0E2A]", text: "text-white/20", border: "border-transparent" };
   };
 
@@ -310,18 +332,21 @@ export default function Comparison() {
           </div>
         </div>
 
-        {/* BARRA 1: Seletor de Rodadas (Apenas Futebol) */}
+        {/* BARRA 1: Seletor de Rodadas (Apenas Futebol) - Com ícone padronizado */}
         {isFootball && (
-          <select 
-            value={rodadaSelecionada} 
-            onChange={(e) => handleMudancaRodada(e.target.value)}
-            className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none"
-          >
-            {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
-          </select>
+          <div className="relative w-full">
+            <select 
+              value={rodadaSelecionada} 
+              onChange={(e) => handleMudancaRodada(e.target.value)}
+              className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 pr-10 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none appearance-none cursor-pointer select-none text-sm tracking-wide"
+            >
+              {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
+            </select>
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#0077FF] pointer-events-none">▼</span>
+          </div>
         )}
 
-        {/* BARRA 2: Calendário Customizado Dropdown */}
+        {/* BARRA 2: Calendário Customizado Dropdown - Com ícone padronizado */}
         <div className="relative w-full">
           <div 
             onClick={() => setCalendarioAberto(!calendarioAberto)}
