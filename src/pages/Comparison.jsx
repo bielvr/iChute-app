@@ -90,8 +90,6 @@ export default function Comparison() {
         const ultimaTemporada = maxSeasonData && maxSeasonData.length > 0 ? maxSeasonData[0].season : new Date().getFullYear().toString();
         setTemporadaAtiva(ultimaTemporada);
 
-        const agora = new Date().toISOString();
-
         if (football) {
           // Coletar rodadas disponíveis
           const { data: rounds } = await supabase.from('matches')
@@ -108,7 +106,7 @@ export default function Comparison() {
             .select('round, date')
             .eq('league_id', ligaInfo.official_league_id)
             .eq('season', ultimaTemporada)
-            .lte('date', agora)
+            .lte('date', new Date().toISOString())
             .order('date', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -134,7 +132,7 @@ export default function Comparison() {
             .select('date')
             .eq('league_id', ligaInfo.official_league_id)
             .eq('season', ultimaTemporada)
-            .lte('date', agora)
+            .lte('date', new Date().toISOString())
             .order('date', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -157,15 +155,13 @@ export default function Comparison() {
     loadBaseData();
   }, [ligaId]);
 
-  // Função para contar volume de jogos por dia no calendário
+  // Função dinâmica para contar volume de jogos por dia convertendo para data local do dispositivo
   async function buscarContagemJogos(offId, seasonStr, footballMode, roundValue) {
     try {
-      const agora = new Date().toISOString();
       let query = supabase.from('matches')
         .select('date')
         .eq('league_id', offId)
-        .eq('season', seasonStr)
-        .lte('date', agora);
+        .eq('season', seasonStr);
 
       if (footballMode && roundValue) {
         query = query.eq('round', roundValue);
@@ -174,6 +170,7 @@ export default function Comparison() {
       const { data } = await query;
       const mapaContagem = {};
       data?.forEach(j => {
+        // Mapeia na bolinha com base no fuso local do navegador do usuário
         const dStr = new Date(j.date).toLocaleDateString('en-CA');
         mapaContagem[dStr] = (mapaContagem[dStr] || 0) + 1;
       });
@@ -183,22 +180,24 @@ export default function Comparison() {
     }
   }
 
-  // Busca partidas do dia selecionado
+  // Busca partidas do dia selecionado respeitando fuso local
   async function fetchMatches(offId, seasonStr, dateStr) {
     setLoadingPreds(true);
     try {
-      const inicio = new Date(`${dateStr}T00:00:00Z`);
-      const fim = new Date(inicio); 
-      fim.setHours(fim.getHours() + 36);
+      // Amortece a busca do banco trazendo uma janela de 48h (D-1 até D+1) baseada no meio do dia local
+      const dataBase = new Date(`${dateStr}T12:00:00`);
+      const inicioQuery = new Date(dataBase.getTime() - 24 * 60 * 60 * 1000).toISOString();
+      const fimQuery = new Date(dataBase.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
       const { data: matchesData } = await supabase.from('matches')
         .select(`*, home:home_team_id(name, url_logo), away:away_team_id(name, url_logo)`)
         .eq('league_id', offId)
         .eq('season', seasonStr)
-        .gte('date', inicio.toISOString())
-        .lte('date', fim.toISOString())
+        .gte('date', inicioQuery)
+        .lte('date', fimQuery)
         .order('date', { ascending: true });
 
+      // O FILTRO REAL: Filtra rigorosamente comparando com o dia local do navegador
       const filtrados = (matchesData || []).filter(j => 
         new Date(j.date).toLocaleDateString('en-CA') === dateStr
       );
@@ -239,13 +238,11 @@ export default function Comparison() {
     
     await buscarContagemJogos(officialLeagueId, temporadaAtiva, true, novaRodada);
     
-    const agora = new Date().toISOString();
     const { data: primeiroJogo } = await supabase.from('matches')
       .select('date')
       .eq('league_id', officialLeagueId)
       .eq('season', temporadaAtiva)
       .eq('round', novaRodada)
-      .lte('date', agora)
       .order('date', { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -299,7 +296,6 @@ export default function Comparison() {
     return `${dia} DE ${meses[parseInt(mes) - 1]} DE ${ano}`;
   };
 
-  // Tema de cores adaptativo baseado nas pontuações configuradas dinamicamente
   const getPointTheme = (pts) => {
     if (pts > 0 && pts === pontosConfig.cravada) {
       return { bg: "bg-[#39FF14]", text: "text-white", border: "border-[#39FF14]" };
@@ -332,7 +328,6 @@ export default function Comparison() {
           </div>
         </div>
 
-        {/* BARRA 1: Seletor de Rodadas (Apenas Futebol) - Com ícone padronizado */}
         {isFootball && (
           <div className="relative w-full">
             <select 
@@ -346,7 +341,6 @@ export default function Comparison() {
           </div>
         )}
 
-        {/* BARRA 2: Calendário Customizado Dropdown - Com ícone padronizado */}
         <div className="relative w-full">
           <div 
             onClick={() => setCalendarioAberto(!calendarioAberto)}
