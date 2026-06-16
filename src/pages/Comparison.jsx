@@ -283,7 +283,7 @@ export default function Comparison() {
     return painelDias;
   };
 
-  const mudarMes = (direcao) => {
+  const mudoMes = (direcao) => {
     const novoMes = new Date(mesAtualCalendario);
     novoMes.setMonth(novoMes.getMonth() + direcao);
     setMesAtualCalendario(novoMes);
@@ -353,11 +353,11 @@ export default function Comparison() {
           {calendarioAberto && (
             <div className="absolute top-[115%] left-0 w-full bg-[#141733] border border-[#26283A] rounded-[25px] p-4 z-50 shadow-2xl animate-fadeIn">
               <div className="flex justify-between items-center mb-4 px-2">
-                <button onClick={() => mudarMes(-1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">‹</button>
+                <button onClick={() => mudoMes(-1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">‹</button>
                 <span className="font-black italic uppercase text-xs sm:text-sm tracking-wide text-white">
                   {mesAtualCalendario.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                 </span>
-                <button onClick={() => mudarMes(1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">›</button>
+                <button onClick={() => mudoMes(1)} className="text-[#0077FF] font-black text-lg p-1 px-3 bg-[#1A1C3A] rounded-lg">›</button>
               </div>
 
               <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black text-gray-500 uppercase mb-2">
@@ -432,46 +432,60 @@ export default function Comparison() {
           <div className="text-center py-20 text-white/10 font-black italic uppercase tracking-widest">Nenhum resultado para este dia</div>
         )}
 
-        {jogos.map((jogo) => (
-          <div key={jogo.id} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px]">
-            <div className="flex justify-between items-center mb-6 bg-[#0A0E2A]/50 p-4 rounded-[20px]">
-              <div className="flex flex-col items-center w-1/3">
-                <img src={jogo.home?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
-                <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.home?.name}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-3xl font-black italic">{jogo.goals_home ?? '-'}</span>
-                <span className="text-[#0077FF] font-black italic opacity-30">X</span>
-                <span className="text-3xl font-black italic">{jogo.goals_away ?? '-'}</span>
-              </div>
-              <div className="flex flex-col items-center w-1/3">
-                <img src={jogo.away?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
-                <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.away?.name}</span>
-              </div>
-            </div>
+        {jogos.map((jogo) => {
+          // Verifica se o jogo já começou comparando os timestamps em UTC
+          const jogoJaComecou = new Date().toISOString() >= jogo.date;
 
-            <div className="grid gap-2">
-              {usuarios.map((u) => {
-                const p = palpitesMatriz[jogo.id]?.[u.id];
-                const pts = p?.points || 0;
-                const theme = getPointTheme(pts);
-                return (
-                  <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border ${theme.border} bg-[#0A0E2A]/40`}>
-                    <span className="text-[9px] font-black uppercase italic text-white/50">{u.name.split(' ')[0]}</span>
-                    <div className="flex items-center gap-3">
-                      <span className={`font-black italic text-xs ${p ? 'text-white' : 'text-white/20'}`}>
-                        {p ? `${p.home} x ${p.away}` : '-- x --'}
-                      </span>
-                      <div className={`min-w-[55px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic ${theme.bg} ${theme.text}`}>
-                        {pts} PTS
+          return (
+            <div key={jogo.id} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px]">
+              <div className="flex justify-between items-center mb-6 bg-[#0A0E2A]/50 p-4 rounded-[20px]">
+                <div className="flex flex-col items-center w-1/3">
+                  <img src={jogo.home?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
+                  <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.home?.name}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl font-black italic">{jogo.goals_home ?? '-'}</span>
+                  <span className="text-[#0077FF] font-black italic opacity-30">X</span>
+                  <span className="text-3xl font-black italic">{jogo.goals_away ?? '-'}</span>
+                </div>
+                <div className="flex flex-col items-center w-1/3">
+                  <img src={jogo.away?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
+                  <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.away?.name}</span>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                {usuarios.map((u) => {
+                  const p = palpitesMatriz[jogo.id]?.[u.id];
+                  const pts = p?.points || 0;
+                  const theme = getPointTheme(pts);
+                  
+                  // Se o palpite for do próprio usuário logado, você pode querer mostrar sempre. 
+                  // Caso contrário, segue a regra estrita do horário do jogo.
+                  const ehDonoDoPalpite = u.id === (supabase.auth.user?.()?.id || null);
+                  const revelarPalpite = jogoJaComecou || ehDonoDoPalpite;
+
+                  return (
+                    <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border ${theme.border} bg-[#0A0E2A]/40`}>
+                      <span className="text-[9px] font-black uppercase italic text-white/50">{u.name.split(' ')[0]}</span>
+                      <div className="flex items-center gap-3">
+                        <span className={`font-black italic text-xs ${p ? 'text-white' : 'text-white/20'}`}>
+                          {p 
+                            ? (revelarPalpite ? `${p.home} x ${p.away}` : "?? x ??") 
+                            : '-- x --'
+                          }
+                        </span>
+                        <div className={`min-w-[55px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic ${theme.bg} ${theme.text}`}>
+                          {pts} PTS
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <BottomNav />
 
