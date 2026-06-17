@@ -74,7 +74,10 @@ export default function Ranking() {
       .from('ranking_detalhado')
       .select('*')
       .eq('user_league_id', ligaId)
-      .order('total_points', { ascending: false });
+      .order('total_points', { ascending: false })
+      .order('cravadas', { ascending: false })
+      .order('vencedor_bonus', { ascending: false })
+      .order('vencedor_only', { ascending: false });
 
     if (data) setRankingLiga(data);
   }
