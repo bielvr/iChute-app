@@ -287,23 +287,23 @@ function RankingCard({ pos, name, isUser, score, scoreLabel, cravadas, vencedore
       {/* Grid de Estatísticas com Contraste Ajustado para o Usuário Ativo */}
       <div className={`grid grid-cols-4 gap-2 pt-3 border-t ${isUser ? 'border-white/20' : 'border-white/5'} text-center`}>
         <div>
-          <span className={`block font-black text-xs italic ${isUser ? 'text-[#0A0E2A]' : 'text-white'}`}>{cravadas}</span>
-          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-[#0A0E2A]/70' : 'text-gray-500'}`}>Cravadas</span>
+          <span className={`block font-black text-xs italic ${isUser ? 'text-white' : 'text-white'}`}>{cravadas}</span>
+          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-gray-500' : 'text-gray-500'}`}>Cravadas</span>
         </div>
 
         <div>
-          <span className={`block font-black text-xs italic ${isUser ? 'text-[#0A0E2A]' : 'text-white'}`}>{vencedores}</span>
-          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-[#0A0E2A]/70' : 'text-gray-500'}`}>Vencedor</span>
+          <span className={`block font-black text-xs italic ${isUser ? 'text-white' : 'text-white'}`}>{vencedores}</span>
+          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'ttext-gray-500' : 'text-gray-500'}`}>Vencedor</span>
         </div>
 
         <div>
-          <span className={`block font-black text-xs italic ${isUser ? 'text-[#0A0E2A]' : 'text-white'}`}>{gols}</span>
-          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-[#0A0E2A]/70' : 'text-gray-500'}`}>Acerto Gols</span>
+          <span className={`block font-black text-xs italic ${isUser ? 'text-white' : 'text-white'}`}>{gols}</span>
+          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-gray-500' : 'text-gray-500'}`}>Acerto Gols</span>
         </div>
 
         <div>
-          <span className={`block font-black text-xs italic ${isUser ? 'text-[#0A0E2A]' : 'text-white'}`}>{jogos}</span>
-          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-[#0A0E2A]/70' : 'text-gray-500'}`}>Palpites</span>
+          <span className={`block font-black text-xs italic ${isUser ? 'text-white' : 'text-white'}`}>{jogos}</span>
+          <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-gray-500' : 'text-gray-500'}`}>Palpites</span>
         </div>
       </div>
     </div>
