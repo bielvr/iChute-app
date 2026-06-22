@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 import Logo from '../components/Logo';
+import html2canvas from 'html2canvas'; // Certifique-se de rodar: npm i html2canvas
 
 export default function Comparison() {
   const { ligaId } = useParams();
@@ -17,32 +18,30 @@ export default function Comparison() {
   const [officialLeagueId, setOfficialLeagueId] = useState(null);
   const [temporadaAtiva, setTemporadaAtiva] = useState('');
 
-  // Configurações customizadas de pontuação da liga do usuário
+  // Dicionário de referências para capturar cada card individualmente
+  const cardRefs = useRef({});
+
   const [pontosConfig, setPontosConfig] = useState({
     cravada: 3,
     cheio: 2,
     resultado: 1
   });
 
-  // Lógica de Abas e Filtros Adaptados
   const [isFootball, setIsFootball] = useState(false);
   const [listaRodadas, setListaRodadas] = useState([]);
   const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
   const [dataSelecionada, setDataSelecionada] = useState(new Date().toLocaleDateString('en-CA'));
 
-  // Estados do Calendário Customizado Dropdown
   const [calendarioAberto, setCalendarioAberto] = useState(false);
   const [mesAtualCalendario, setMesAtualCalendario] = useState(new Date());
   const [contagemJogosPorDia, setContagemJogosPorDia] = useState({});
 
-  // EFEITO 1: Carregar estrutura da Liga, Configurações de Pontos, Membros e Partidas
   useEffect(() => {
     async function loadBaseData() {
       if (!ligaId) return;
       setLoading(true);
       
       try {
-        // 1. Buscar membros da liga
         const { data: membros, error: errMembros } = await supabase
           .from('user_league_members')
           .select('user_id, users(name)')
@@ -51,7 +50,6 @@ export default function Comparison() {
         if (errMembros) throw errMembros;
         setUsuarios(membros?.map(m => ({ id: m.user_id, name: m.users?.name || 'Usuário' })) || []);
 
-        // 2. Info da Liga, Sport e Regras customizadas de Pontuação
         const { data: ligaInfo, error: errLiga } = await supabase
           .from('user_leagues')
           .select(`
@@ -64,7 +62,6 @@ export default function Comparison() {
 
         if (errLiga || !ligaInfo) throw new Error("Liga não encontrada");
 
-        // Alimentar o estado de regras com os pontos configurados pelo dono da liga
         if (ligaInfo.leagues_config) {
           setPontosConfig({
             cravada: ligaInfo.leagues_config.exact_score_points ?? 3,
@@ -79,7 +76,6 @@ export default function Comparison() {
         setIsFootball(football);
         setOfficialLeagueId(ligaInfo.official_league_id);
 
-        // Buscar última temporada disponível
         const { data: maxSeasonData } = await supabase
           .from('matches')
           .select('season')
@@ -91,7 +87,6 @@ export default function Comparison() {
         setTemporadaAtiva(ultimaTemporada);
 
         if (football) {
-          // Coletar rodadas disponíveis
           const { data: rounds } = await supabase.from('matches')
             .select('round')
             .eq('league_id', ligaInfo.official_league_id)
@@ -101,7 +96,6 @@ export default function Comparison() {
           const uniqueRounds = [...new Set(rounds?.map(r => r.round))];
           setListaRodadas(uniqueRounds);
 
-          // Localiza a rodada atual baseada no tempo real
           const { data: currentMatch } = await supabase.from('matches')
             .select('round, date')
             .eq('league_id', ligaInfo.official_league_id)
@@ -125,7 +119,6 @@ export default function Comparison() {
           await buscarContagemJogos(ligaInfo.official_league_id, ultimaTemporada, true, targetRound);
           fetchMatches(ligaInfo.official_league_id, ultimaTemporada, dataAlvo);
         } else {
-          // Outros Esportes: Calendário Geral de datas passadas
           await buscarContagemJogos(ligaInfo.official_league_id, ultimaTemporada, false, null);
 
           const { data: ultimoJogoPassado } = await supabase.from('matches')
@@ -155,22 +148,15 @@ export default function Comparison() {
     loadBaseData();
   }, [ligaId]);
 
-  // Função dinâmica para contar volume de jogos por dia convertendo para data local do dispositivo
   async function buscarContagemJogos(offId, seasonStr, footballMode, roundValue) {
     try {
-      let query = supabase.from('matches')
-        .select('date')
-        .eq('league_id', offId)
-        .eq('season', seasonStr);
-
+      let query = supabase.from('matches').select('date').eq('league_id', offId).eq('season', seasonStr);
       if (footballMode && roundValue) {
         query = query.eq('round', roundValue);
       }
-      
       const { data } = await query;
       const mapaContagem = {};
       data?.forEach(j => {
-        // Mapeia na bolinha com base no fuso local do navegador do usuário
         const dStr = new Date(j.date).toLocaleDateString('en-CA');
         mapaContagem[dStr] = (mapaContagem[dStr] || 0) + 1;
       });
@@ -180,11 +166,9 @@ export default function Comparison() {
     }
   }
 
-  // Busca partidas do dia selecionado respeitando fuso local
   async function fetchMatches(offId, seasonStr, dateStr) {
     setLoadingPreds(true);
     try {
-      // Amortece a busca do banco trazendo uma janela de 48h (D-1 até D+1) baseada no meio do dia local
       const dataBase = new Date(`${dateStr}T12:00:00`);
       const inicioQuery = new Date(dataBase.getTime() - 24 * 60 * 60 * 1000).toISOString();
       const fimQuery = new Date(dataBase.getTime() + 24 * 60 * 60 * 1000).toISOString();
@@ -197,7 +181,6 @@ export default function Comparison() {
         .lte('date', fimQuery)
         .order('date', { ascending: true });
 
-      // O FILTRO REAL: Filtra rigorosamente comparando com o dia local do navegador
       const filtrados = (matchesData || []).filter(j => 
         new Date(j.date).toLocaleDateString('en-CA') === dateStr
       );
@@ -235,7 +218,6 @@ export default function Comparison() {
   const handleMudancaRodada = async (novaRodada) => {
     setRodadaSelecionada(novaRodada);
     setLoadingPreds(true);
-    
     await buscarContagemJogos(officialLeagueId, temporadaAtiva, true, novaRodada);
     
     const { data: primeiroJogo } = await supabase.from('matches')
@@ -257,23 +239,37 @@ export default function Comparison() {
     fetchMatches(officialLeagueId, temporadaAtiva, novaDataFoco);
   };
 
+  const handleShareCard = async (jogoId) => {
+    const element = cardRefs.current[jogoId];
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#0A0E2A',
+        scale: 2, // Melhora a resolução do print
+        useCORS: true // Permite carregar os escudos vindos de URLs externas
+      });
+      const image = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = image;
+      link.download = `ichute-partida-${jogoId}.png`;
+      link.click();
+    } catch (error) {
+      console.error("Erro ao gerar imagem de compartilhamento:", error);
+    }
+  };
+
   const gerarDiasDoCalendario = () => {
     const ano = mesAtualCalendario.getFullYear();
     const mes = mesAtualCalendario.getMonth();
-    
     const primeiroDiaDoMes = new Date(ano, mes, 1).getDay();
     const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
     
     const painelDias = [];
-    for (let i = 0; i < primeiroDiaDoMes; i++) {
-      painelDias.push(null);
-    }
-    
+    for (let i = 0; i < primeiroDiaDoMes; i++) painelDias.push(null);
     for (let dia = 1; dia <= totalDiasNoMes; dia++) {
       const mesFormatado = String(mes + 1).padStart(2, '0');
       const diaFormatado = String(dia).padStart(2, '0');
       const dataStringCompleta = `${ano}-${mesFormatado}-${diaFormatado}`;
-      
       painelDias.push({
         dia,
         dataString: dataStringCompleta,
@@ -298,15 +294,15 @@ export default function Comparison() {
 
   const getPointTheme = (pts) => {
     if (pts > 0 && pts === pontosConfig.cravada) {
-      return { bg: "bg-[#39FF14]", text: "text-white", border: "border-[#39FF14]" };
+      return { bg: "bg-[#39FF14]", text: "text-[#2B302A]", border: "border-[#39FF14]" }; // Modificado para texto grafite escuro
     }
     if (pts > 0 && pts === pontosConfig.cheio) {
-      return { bg: "bg-[#FAFF00]/40", text: "text-[B0C4DE]", border: "border-[#FAFF00]/50" };
+      return { bg: "bg-[#FAFF00]/40", text: "text-white", border: "border-[#FAFF00]/50" };
     }
     if (pts > 0 && pts === pontosConfig.resultado) {
-      return { bg: "bg-[#0077FF]/40", text: "text-[F0F8FF]", border: "border-[#0077FF]/50" };
+      return { bg: "bg-[#0077FF]/40", text: "text-white", border: "border-[#0077FF]/50" };
     }
-    return { bg: "bg-[#0A0E2A]", text: "text-white/20", border: "border-transparent" };
+    return { bg: "bg-[#0A0E2A]/60", text: "text-white/20", border: "border-white/5" };
   };
 
   if (loading) return (
@@ -316,7 +312,7 @@ export default function Comparison() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans">
+    <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans subpixel-antialiased">
       <header className="max-w-2xl mx-auto flex flex-col gap-3 mb-6">
         <div className="flex justify-between items-center mb-2">
           <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic transition-all hover:bg-[#0077FF]">
@@ -367,7 +363,6 @@ export default function Comparison() {
               <div className="grid grid-cols-7 gap-y-3 gap-x-1">
                 {gerarDiasDoCalendario().map((item, index) => {
                   if (!item) return <div key={`empty-${index}`} />;
-                  
                   const isHoje = item.dataString === new Date().toLocaleDateString('en-CA');
                   const isSelecionado = item.dataString === dataSelecionada;
 
@@ -388,7 +383,6 @@ export default function Comparison() {
                       }`}
                     >
                       <span className="text-xs font-bold">{item.dia}</span>
-                      
                       {item.qtdJogos > 0 && (
                         <span className={`text-[8px] mt-0.5 block w-3.5 h-3.5 leading-[14px] text-center rounded-full font-black ${
                           isSelecionado ? 'bg-white text-[#0077FF]' : 'bg-[#26283A] text-gray-400'
@@ -399,21 +393,6 @@ export default function Comparison() {
                     </button>
                   );
                 })}
-              </div>
-
-              <div className="mt-4 pt-2 border-t border-[#26283A] flex justify-center">
-                <button 
-                  onClick={() => {
-                    const hoje = new Date().toLocaleDateString('en-CA');
-                    setDataSelecionada(hoje);
-                    setMesAtualCalendario(new Date());
-                    setCalendarioAberto(false);
-                    fetchMatches(officialLeagueId, temporadaAtiva, hoje);
-                  }}
-                  className="bg-[#1A1C3A] border border-[#26283A] text-white px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider"
-                >
-                  Hoje
-                </button>
               </div>
             </div>
           )}
@@ -433,49 +412,75 @@ export default function Comparison() {
         )}
 
         {jogos.map((jogo) => {
-          // Verifica se o jogo já começou comparando os timestamps em UTC
           const jogoJaComecou = new Date().toISOString() >= jogo.date;
 
           return (
-            <div key={jogo.id} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px]">
-              <div className="flex justify-between items-center mb-6 bg-[#0A0E2A]/50 p-4 rounded-[20px]">
-                <div className="flex flex-col items-center w-1/3">
-                  <img src={jogo.home?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
-                  <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.home?.name}</span>
+            <div 
+              key={jogo.id} 
+              ref={el => cardRefs.current[jogo.id] = el}
+              className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px] relative overflow-hidden"
+            >
+              {/* Botão de Compartilhar no Canto Superior Direito */}
+              <button 
+                onClick={() => handleShareCard(jogo.id)}
+                className="absolute top-4 right-5 text-white/30 hover:text-[#0077FF] transition-colors z-20"
+                title="Compartilhar resultado"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186l5.566-3.132m-5.566 3.132l5.566 3.132m0 0a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185m0-6.264a2.25 2.25 0 1 0 3.933-2.186 2.25 2.25 0 0 0-3.933 2.186" />
+                </svg>
+              </button>
+
+              {/* Placar Principal: Layout Centralizado com times próximos ao placar */}
+              <div className="flex justify-center items-center gap-6 mb-6 bg-[#0A0E2A]/50 py-4 px-6 rounded-[20px] max-w-md mx-auto">
+                {/* Time Mandante */}
+                <div className="flex items-center gap-3 justify-end w-5/12">
+                  <span className="text-[11px] font-black uppercase text-white/80 tracking-wide text-right truncate max-w-[90px]">{jogo.home?.name}</span>
+                  <img src={jogo.home?.url_logo} className="w-7 h-7 object-contain" alt="" />
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl font-black italic">{jogo.goals_home ?? '-'}</span>
-                  <span className="text-[#0077FF] font-black italic opacity-30">X</span>
-                  <span className="text-3xl font-black italic">{jogo.goals_away ?? '-'}</span>
+
+                {/* Gols e X centralizados */}
+                <div className="flex items-center gap-2.5 justify-center w-2/12 select-none">
+                  <span className="text-2xl font-black italic tracking-tighter text-white">{jogo.goals_home ?? '-'}</span>
+                  <span className="text-[#0077FF] text-xs font-black italic opacity-40">X</span>
+                  <span className="text-2xl font-black italic tracking-tighter text-white">{jogo.goals_away ?? '-'}</span>
                 </div>
-                <div className="flex flex-col items-center w-1/3">
-                  <img src={jogo.away?.url_logo} className="w-8 h-8 object-contain mb-1" alt="" />
-                  <span className="text-[8px] font-black uppercase text-white/40 text-center">{jogo.away?.name}</span>
+
+                {/* Time Visitante */}
+                <div className="flex items-center gap-3 justify-start w-5/12">
+                  <img src={jogo.away?.url_logo} className="w-7 h-7 object-contain" alt="" />
+                  <span className="text-[11px] font-black uppercase text-white/80 tracking-wide text-left truncate max-w-[90px]">{jogo.away?.name}</span>
                 </div>
               </div>
 
+              {/* Lista de Membros e Seus Palpites */}
               <div className="grid gap-2">
                 {usuarios.map((u) => {
                   const p = palpitesMatriz[jogo.id]?.[u.id];
                   const pts = p?.points || 0;
                   const theme = getPointTheme(pts);
                   
-                  // Se o palpite for do próprio usuário logado, você pode querer mostrar sempre. 
-                  // Caso contrário, segue a regra estrita do horário do jogo.
                   const ehDonoDoPalpite = u.id === (supabase.auth.user?.()?.id || null);
                   const revelarPalpite = jogoJaComecou || ehDonoDoPalpite;
 
                   return (
                     <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border ${theme.border} bg-[#0A0E2A]/40`}>
-                      <span className="text-[9px] font-black uppercase italic text-white/50">{u.name.split(' ')[0]}</span>
-                      <div className="flex items-center gap-3">
-                        <span className={`font-black italic text-xs ${p ? 'text-white' : 'text-white/20'}`}>
+                      {/* Nome Alinhado à Esquerda */}
+                      <span className="text-[10px] font-black uppercase italic text-white/50 w-1/4">{u.name.split(' ')[0]}</span>
+                      
+                      {/* Palpite Perfeitamente Centralizado */}
+                      <div className="w-2/4 flex justify-center">
+                        <span className={`font-black italic text-xs tracking-wider ${p ? 'text-white' : 'text-white/20'}`}>
                           {p 
                             ? (revelarPalpite ? `${p.home} x ${p.away}` : "?? x ??") 
                             : '-- x --'
                           }
                         </span>
-                        <div className={`min-w-[55px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic ${theme.bg} ${theme.text}`}>
+                      </div>
+
+                      {/* Caixa de Pontos Alinhada à Direita (Separada do Palpite) */}
+                      <div className="w-1/4 flex justify-end">
+                        <div className={`min-w-[60px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic tracking-wide transition-all ${theme.bg} ${theme.text}`}>
                           {pts} PTS
                         </div>
                       </div>
