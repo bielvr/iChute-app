@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 import Logo from '../components/Logo';
-import html2canvas from 'html2canvas'; // Certifique-se de rodar: npm i html2canvas
 
 export default function Comparison() {
   const { ligaId } = useParams();
