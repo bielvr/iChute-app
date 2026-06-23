@@ -239,22 +239,28 @@ export default function Comparison() {
     fetchMatches(officialLeagueId, temporadaAtiva, novaDataFoco);
   };
 
-  const handleShareCard = async (jogoId) => {
-    const element = cardRefs.current[jogoId];
-    if (!element) return;
-    try {
-      const canvas = await html2canvas(element, {
-        backgroundColor: '#0A0E2A',
-        scale: 2, // Melhora a resolução do print
-        useCORS: true // Permite carregar os escudos vindos de URLs externas
-      });
-      const image = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = image;
-      link.download = `ichute-partida-${jogoId}.png`;
-      link.click();
-    } catch (error) {
-      console.error("Erro ao gerar imagem de compartilhamento:", error);
+  const handleShareCard = async (jogo) => {
+    if (!jogo) return;
+    
+    const textoCompartilhar = `🏆 *iChute - Comparativo* 🏆\n\n⚽ ${jogo.home?.name} ${jogo.goals_home ?? '-'} x ${jogo.goals_away ?? '-'} ${jogo.away?.name}\n\nConfira todos os palpites da rodada direto no app!`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'iChute',
+          text: textoCompartilhar,
+          url: window.location.href,
+        });
+      } catch (error) {
+        console.error("Erro ao compartilhar:", error);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${textoCompartilhar}\n\n${window.location.href}`);
+        alert("Texto e link copiados para a área de transferência! 👍");
+      } catch (err) {
+        console.error("Não foi possível copiar", err);
+      }
     }
   };
 
