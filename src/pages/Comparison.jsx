@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 import Logo from '../components/Logo';
+import * as htmlToImage from 'html-to-image';
 
 export default function Comparison() {
   const { ligaId } = useParams();
@@ -282,107 +283,50 @@ export default function Comparison() {
     }
 
     try {
-      // 1. Converte as URLs externas dos escudos para Base64 seguro inline
-      const logoHomeBase64 = await converterImagemParaBase64(jogo.home?.url_logo);
-      const logoAwayBase64 = await converterImagemParaBase64(jogo.away?.url_logo);
+      // Opcional: Ocultar temporariamente o botão de compartilhar antes do print
+      const botaoShare = elementoCard.querySelector('button');
+      if (botaoShare) botaoShare.style.visibility = 'hidden';
 
-      // 2. Clona o elemento HTML original para higienização
-      const elementoClonado = elementoCard.cloneNode(true);
-      
-      // Remove o botão de compartilhar do clone para não estragar a imagem final
-      const botaoshareClonado = elementoClonado.querySelector('button');
-      if (botaoshareClonado) botaoshareClonado.remove();
+      // Configurações do html-to-image para garantir qualidade e forçar o CORS correto
+      const dataUrl = await htmlToImage.toPng(elementoCard, {
+        quality: 0.95,
+        backgroundColor: '#1A1C3A', // Garante o fundo do card mesmo clonado
+        style: {
+          borderRadius: '30px',
+        },
+        // Força a validação de CORS para os escudos vindos do Supabase/externos
+        cacheBust: true, 
+      });
 
-      // Substitui os sources das tags img pelos hashes Base64 criados
-      const imagens = elementoClonado.querySelectorAll('img');
-      if (imagens.length >= 2) {
-        // Se o base64 falhou por CORS rígido, removemos a tag ou injetamos um fallback transparente 
-        // para o SVG/ForeignObject não quebrar na renderização do canvas final.
-        imagens[0].src = logoHomeBase64 || "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-        imagens[1].src = logoAwayBase64 || "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+      // Restaurar o botão de compartilhar após a captura
+      if (botaoShare) botaoShare.style.visibility = 'visible';
+
+      // Converte a DataURL gerada para um Blob PNG para poder usar no navigator.share
+      const res = await fetch(dataUrl);
+      const blobPng = await res.blob();
+
+      const nomeArquivo = `iChute-${jogo.home?.name || 'confronto'}.png`;
+      const arquivoImagem = new File([blobPng], nomeArquivo, { type: 'image/png' });
+      const textoCompartilhar = `🏆 *iChute* 🏆\nConfira os palpites do jogo direto no app!`;
+
+      if (navigator.canShare && navigator.canShare({ files: [arquivoImagem] })) {
+        try {
+          await navigator.share({
+            files: [arquivoImagem],
+            title: 'iChute Comparativo',
+            text: textoCompartilhar
+          });
+        } catch (shareErr) {
+          console.error("Compartilhamento nativo cancelado:", shareErr);
+        }
+      } else {
+        // Fallback automático para download
+        const linkDownloadTemp = document.createElement('a');
+        linkDownloadTemp.href = dataUrl;
+        linkDownloadTemp.download = nomeArquivo;
+        linkDownloadTemp.click();
+        alert("Card gerado e baixado! Agora é só colar no grupo do WhatsApp! 👍");
       }
-
-      // 3. Serializa o clone modificado e estruturado
-      const xmlSerializer = new XMLSerializer();
-      const largura = elementoCard.offsetWidth || 450;
-      const altura = elementoCard.offsetHeight || 500;
-      const htmlString = xmlSerializer.serializeToString(elementoClonado);
-
-      // Estilos CSS incorporados para o visual idêntico do iChute
-      const estilosCSS = `
-        <style>
-          * { font-family: sans-serif; box-sizing: border-box; }
-          .bg-\\[\\#1A1C3A\\] { background-color: #1A1C3A !important; }
-          .bg-\\[\\#0A0E2A\\]\\/50 { background-color: rgba(10, 14, 42, 0.5) !important; }
-          .bg-\\[\\#0A0E2A\\]\\/40 { background-color: rgba(10, 14, 42, 0.4) !important; }
-          .text-white { color: #ffffff !important; }
-          .text-white\\/50 { color: rgba(255, 255, 255, 0.5) !important; }
-          .text-white\\/20 { color: rgba(255, 255, 255, 0.2) !important; }
-          .text-\\[\\#0077FF\\] { color: #0077FF !important; }
-          .bg-\\[\\#39FF14\\] { background-color: #39FF14 !important; }
-          .text-\\[\\#2B302A\\] { color: #2B302A !important; }
-          .border { border-style: solid !important; }
-        </style>
-      `;
-
-      // 4. Monta a string do container SVG estruturado
-      const svgString = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="${largura}" height="${altura}">
-          <foreignObject width="100%" height="100%">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="width:${largura}px; height:${altura}px; padding:0; margin:0; border-radius:30px; overflow:hidden; background-color:#0A0E2A;">
-              ${estilosCSS}
-              ${htmlString}
-            </div>
-          </foreignObject>
-        </svg>
-      `;
-
-      const blobSVG = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const urlSVG = URL.createObjectURL(blobSVG);
-
-      const img = new Image();
-      img.src = urlSVG;
-
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = largura;
-        canvas.height = altura;
-        const ctx = canvas.getContext('2d');
-        
-        ctx.drawImage(img, 0, 0);
-        URL.revokeObjectURL(urlSVG);
-
-        // 5. Executa a exportação de forma limpa e nativa sem erros de CORS
-        canvas.toBlob(async (blobPng) => {
-          if (!blobPng) {
-            alert("Erro ao processar imagem final.");
-            return;
-          }
-
-          const nomeArquivo = `iChute-${jogo.home?.name || 'confronto'}.png`;
-          const arquivoImagem = new File([blobPng], nomeArquivo, { type: 'image/png' });
-          const textoCompartilhar = `🏆 *iChute* 🏆\nConfira os palpites do jogo direto no app!`;
-
-          if (navigator.canShare && navigator.canShare({ files: [arquivoImagem] })) {
-            try {
-              await navigator.share({
-                files: [arquivoImagem],
-                title: 'iChute Comparativo',
-                text: textoCompartilhar
-              });
-            } catch (shareErr) {
-              console.error("Compartilhamento nativo cancelado:", shareErr);
-            }
-          } else {
-            // Download de fallback automático para desktop/navegadores antigos
-            const linkDownloadTemp = document.createElement('a');
-            linkDownloadTemp.href = URL.createObjectURL(blobPng);
-            linkDownloadTemp.download = nomeArquivo;
-            linkDownloadTemp.click();
-            alert("Card gerado e baixado! Agora é só colar no grupo do WhatsApp! 👍");
-          }
-        }, 'image/png');
-      };
 
     } catch (err) {
       console.error("Erro geral na geração do card:", err);
@@ -390,121 +334,6 @@ export default function Comparison() {
     }
   };
 
-  const handleShareCard = async (jogo) => {
-    if (!jogo) return;
-    
-    const elementoCard = cardRefs.current[jogo.id];
-    if (!elementoCard) {
-      alert("Não foi possível renderizar o card.");
-      return;
-    }
-
-    try {
-      // 1. Converte as URLs externas dos escudos para Base64 seguro inline
-      const logoHomeBase64 = await converterImagemParaBase64(jogo.home?.url_logo);
-      const logoAwayBase64 = await converterImagemParaBase64(jogo.away?.url_logo);
-
-      // 2. Clona o elemento HTML original para higienização
-      const elementoClonado = elementoCard.cloneNode(true);
-      
-      // Remove o botão de compartilhar do clone para não estragar a imagem final
-      const botaoshareClonado = elementoClonado.querySelector('button');
-      if (botaoshareClonado) botaoshareClonado.remove();
-
-      // Substitui os sources das tags img pelos hashes Base64 criados
-      const imagens = elementoClonado.querySelectorAll('img');
-      if (imagens.length >= 2) {
-        if (logoHomeBase64) imagens[0].src = logoHomeBase64;
-        if (logoAwayBase64) imagens[1].src = logoAwayBase64;
-      }
-
-      // 3. Serializa o clone modificado e estruturado
-      const xmlSerializer = new XMLSerializer();
-      const largura = elementoCard.offsetWidth || 450;
-      const altura = elementoCard.offsetHeight || 500;
-      const htmlString = xmlSerializer.serializeToString(elementoClonado);
-
-      // Estilos CSS incorporados para o visual idêntico do iChute
-      const estilosCSS = `
-        <style>
-          * { font-family: sans-serif; box-sizing: border-box; }
-          .bg-\\[\\#1A1C3A\\] { background-color: #1A1C3A !important; }
-          .bg-\\[\\#0A0E2A\\]\\/50 { background-color: rgba(10, 14, 42, 0.5) !important; }
-          .bg-\\[\\#0A0E2A\\]\\/40 { background-color: rgba(10, 14, 42, 0.4) !important; }
-          .text-white { color: #ffffff !important; }
-          .text-white\\/50 { color: rgba(255, 255, 255, 0.5) !important; }
-          .text-white\\/20 { color: rgba(255, 255, 255, 0.2) !important; }
-          .text-\\[\\#0077FF\\] { color: #0077FF !important; }
-          .bg-\\[\\#39FF14\\] { background-color: #39FF14 !important; }
-          .text-\\[\\#2B302A\\] { color: #2B302A !important; }
-          .border { border-style: solid !important; }
-        </style>
-      `;
-
-      // 4. Monta a string do container SVG estruturado
-      const svgString = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="${largura}" height="${altura}">
-          <foreignObject width="100%" height="100%">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="width:${largura}px; height:${altura}px; padding:0; margin:0; border-radius:30px; overflow:hidden; background-color:#0A0E2A;">
-              ${estilosCSS}
-              ${htmlString}
-            </div>
-          </foreignObject>
-        </svg>
-      `;
-
-      const blobSVG = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const urlSVG = URL.createObjectURL(blobSVG);
-
-      const img = new Image();
-      img.src = urlSVG;
-
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = largura;
-        canvas.height = altura;
-        const ctx = canvas.getContext('2d');
-        
-        ctx.drawImage(img, 0, 0);
-        URL.revokeObjectURL(urlSVG);
-
-        // 5. Executa a exportação de forma limpa e nativa sem erros de CORS
-        canvas.toBlob(async (blobPng) => {
-          if (!blobPng) {
-            alert("Erro ao processar imagem final.");
-            return;
-          }
-
-          const nomeArquivo = `iChute-${jogo.home?.name || 'confronto'}.png`;
-          const arquivoImagem = new File([blobPng], nomeArquivo, { type: 'image/png' });
-          const textoCompartilhar = `🏆 *iChute* 🏆\nConfira os palpites do jogo direto no app!`;
-
-          if (navigator.canShare && navigator.canShare({ files: [arquivoImagem] })) {
-            try {
-              await navigator.share({
-                files: [arquivoImagem],
-                title: 'iChute Comparativo',
-                text: textoCompartilhar
-              });
-            } catch (shareErr) {
-              console.error("Compartilhamento nativo cancelado:", shareErr);
-            }
-          } else {
-            // Download de fallback automático para desktop/navegadores antigos
-            const linkDownloadTemp = document.createElement('a');
-            linkDownloadTemp.href = URL.createObjectURL(blobPng);
-            linkDownloadTemp.download = nomeArquivo;
-            linkDownloadTemp.click();
-            alert("Card gerado e baixado! Agora é só colar no grupo do WhatsApp! 👍");
-          }
-        }, 'image/png');
-      };
-
-    } catch (err) {
-      console.error("Erro geral na geração do card:", err);
-      alert("Houve um problema ao gerar o print do card.");
-    }
-  };
 
   const gerarDiasDoCalendario = () => {
     const ano = mesAtualCalendario.getFullYear();
