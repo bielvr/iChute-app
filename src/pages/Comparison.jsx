@@ -238,10 +238,33 @@ export default function Comparison() {
     fetchMatches(officialLeagueId, temporadaAtiva, novaDataFoco);
   };
 
+  // Função auxiliar interna para evitar contaminação do canvas (Tainted Canvas CORS)
+  const converterImagemParaBase64 = (url) => {
+    return new Promise((resolve) => {
+      if (!url) return resolve('');
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = url;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        try {
+          resolve(canvas.toDataURL('image/png'));
+        } catch (e) {
+          console.error("Erro ao converter para Base64 (CORS):", e);
+          resolve(url); 
+        }
+      };
+      img.onerror = () => resolve('');
+    });
+  };
+
   const handleShareCard = async (jogo) => {
     if (!jogo) return;
     
-    // Captura o elemento HTML exato do card usando a ref do dicionário
     const elementoCard = cardRefs.current[jogo.id];
     if (!elementoCard) {
       alert("Não foi possível renderizar o card.");
@@ -249,10 +272,31 @@ export default function Comparison() {
     }
 
     try {
-      // 1. Clonamos os estilos computados para garantir que o layout escuro e fontes fiquem idênticos
-      const xmlSerializer = new XMLSerializer();
+      // 1. Converte as URLs externas dos escudos para Base64 seguro inline
+      const logoHomeBase64 = await converterImagemParaBase64(jogo.home?.url_logo);
+      const logoAwayBase64 = await converterImagemParaBase64(jogo.away?.url_logo);
+
+      // 2. Clona o elemento HTML original para higienização
+      const elementoClonado = elementoCard.cloneNode(true);
       
-      // Injeta estilos básicos para garantir fontes e backgrounds corretos dentro do SVG temporário
+      // Remove o botão de compartilhar do clone para não estragar a imagem final
+      const botaoshareClonado = elementoClonado.querySelector('button');
+      if (botaoshareClonado) botaoshareClonado.remove();
+
+      // Substitui os sources das tags img pelos hashes Base64 criados
+      const imagens = elementoClonado.querySelectorAll('img');
+      if (imagens.length >= 2) {
+        if (logoHomeBase64) imagens[0].src = logoHomeBase64;
+        if (logoAwayBase64) imagens[1].src = logoAwayBase64;
+      }
+
+      // 3. Serializa o clone modificado e estruturado
+      const xmlSerializer = new XMLSerializer();
+      const largura = elementoCard.offsetWidth || 450;
+      const altura = elementoCard.offsetHeight || 500;
+      const htmlString = xmlSerializer.serializeToString(elementoClonado);
+
+      // Estilos CSS incorporados para o visual idêntico do iChute
       const estilosCSS = `
         <style>
           * { font-family: sans-serif; box-sizing: border-box; }
@@ -265,25 +309,15 @@ export default function Comparison() {
           .text-\\[\\#0077FF\\] { color: #0077FF !important; }
           .bg-\\[\\#39FF14\\] { background-color: #39FF14 !important; }
           .text-\\[\\#2B302A\\] { color: #2B302A !important; }
+          .border { border-style: solid !important; }
         </style>
       `;
 
-      // Oculta temporariamente o próprio botão de compartilhar para ele não sair no "print"
-      const botaoShare = elementoCard.querySelector('button');
-      if (botaoShare) botaoShare.style.display = 'none';
-
-      const largura = elementoCard.offsetWidth || 450;
-      const altura = elementoCard.offsetHeight || 500;
-      const htmlString = xmlSerializer.serializeToString(elementoCard);
-
-      // Restaura o botão na tela logo após a captura
-      if (botaoShare) botaoShare.style.display = 'block';
-
-      // 2. Cria o SVG contendo o HTML usando foreignObject
+      // 4. Monta a string do container SVG estruturado
       const svgString = `
         <svg xmlns="http://www.w3.org/2000/svg" width="${largura}" height="${altura}">
           <foreignObject width="100%" height="100%">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="width:${largura}px; height:${altura}px; padding:0; margin:0; border-radius:30px; overflow:hidden;">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="width:${largura}px; height:${altura}px; padding:0; margin:0; border-radius:30px; overflow:hidden; background-color:#0A0E2A;">
               ${estilosCSS}
               ${htmlString}
             </div>
@@ -291,40 +325,32 @@ export default function Comparison() {
         </svg>
       `;
 
-      // 3. Converte o SVG para uma URL de imagem executável
       const blobSVG = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
       const urlSVG = URL.createObjectURL(blobSVG);
 
-      // 4. Desenha em um Canvas em memória para exportar como PNG limpo
       const img = new Image();
-      img.crossOrigin = "anonymous";
       img.src = urlSVG;
 
-      img.onload = async () => {
+      img.onload = () => {
         const canvas = document.createElement('canvas');
         canvas.width = largura;
         canvas.height = altura;
         const ctx = canvas.getContext('2d');
         
-        // Renderiza a imagem gerada no Canvas
         ctx.drawImage(img, 0, 0);
         URL.revokeObjectURL(urlSVG);
 
-        // Transforma o canvas em um arquivo binário Blob (.png)
+        // 5. Executa a exportação de forma limpa e nativa sem erros de CORS
         canvas.toBlob(async (blobPng) => {
           if (!blobPng) {
-            alert("Erro ao gerar arquivo de imagem.");
+            alert("Erro ao processar imagem final.");
             return;
           }
 
-          // Cria o arquivo formalizado para o sistema operacional compartilhar
-          const nomeArquivo = `iChute-${jogo.home?.name || 'jogo'}-x-${jogo.away?.name || 'jogo'}.png`;
+          const nomeArquivo = `iChute-${jogo.home?.name || 'confronto'}.png`;
           const arquivoImagem = new File([blobPng], nomeArquivo, { type: 'image/png' });
+          const textoCompartilhar = `🏆 *iChute* 🏆\nConfira os palpites do jogo direto no app!`;
 
-          // Texto complementar padrão para acompanhar o arquivo de imagem
-          const textoCompartilhar = `🏆 *iChute* 🏆\nConfira o comparativo do confronto direto no app!`;
-
-          // Dispara o compartilhamento nativo contendo o arquivo real da imagem
           if (navigator.canShare && navigator.canShare({ files: [arquivoImagem] })) {
             try {
               await navigator.share({
@@ -333,22 +359,22 @@ export default function Comparison() {
                 text: textoCompartilhar
               });
             } catch (shareErr) {
-              console.error("Cancelado ou erro no share nativo:", shareErr);
+              console.error("Compartilhamento nativo cancelado:", shareErr);
             }
           } else {
-            // Fallback caso o navegador não permita compartilhar arquivos diretos (ex: desktops antigos)
+            // Download de fallback automático para desktop/navegadores antigos
             const linkDownloadTemp = document.createElement('a');
             linkDownloadTemp.href = URL.createObjectURL(blobPng);
             linkDownloadTemp.download = nomeArquivo;
             linkDownloadTemp.click();
-            alert("Seu navegador não suporta envio direto de imagens. O card foi baixado automaticamente! 👍");
+            alert("Card gerado e baixado! Agora é só colar no grupo do WhatsApp! 👍");
           }
         }, 'image/png');
       };
 
     } catch (err) {
-      console.error("Erro na geração do card:", err);
-      alert("Houve um problema ao processar a imagem do card.");
+      console.error("Erro geral na geração do card:", err);
+      alert("Houve um problema ao gerar o print do card.");
     }
   };
 
@@ -388,7 +414,7 @@ export default function Comparison() {
 
   const getPointTheme = (pts) => {
     if (pts > 0 && pts === pontosConfig.cravada) {
-      return { bg: "bg-[#39FF14]", text: "text-[#2B302A]", border: "border-[#39FF14]" }; // Modificado para texto grafite escuro
+      return { bg: "bg-[#39FF14]", text: "text-[#2B302A]", border: "border-[#39FF14]" }; 
     }
     if (pts > 0 && pts === pontosConfig.cheio) {
       return { bg: "bg-[#FAFF00]/40", text: "text-white", border: "border-[#FAFF00]/50" };
@@ -525,7 +551,7 @@ export default function Comparison() {
                 </svg>
               </button>
 
-              {/* Placar Principal: Layout Centralizado com times próximos ao placar */}
+              {/* Placar Principal */}
               <div className="flex justify-center items-center gap-6 mb-6 bg-[#0A0E2A]/50 py-4 px-6 rounded-[20px] max-w-md mx-auto">
                 {/* Time Mandante */}
                 <div className="flex items-center gap-3 justify-end w-5/12">
@@ -572,7 +598,7 @@ export default function Comparison() {
                         </span>
                       </div>
 
-                      {/* Caixa de Pontos Alinhada à Direita (Separada do Palpite) */}
+                      {/* Caixa de Pontos Alinhada à Direita */}
                       <div className="w-1/4 flex justify-end">
                         <div className={`min-w-[60px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic tracking-wide transition-all ${theme.bg} ${theme.text}`}>
                           {pts} PTS
