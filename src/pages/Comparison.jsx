@@ -241,25 +241,114 @@ export default function Comparison() {
   const handleShareCard = async (jogo) => {
     if (!jogo) return;
     
-    const textoCompartilhar = `🏆 *iChute - Comparativo* 🏆\n\n⚽ ${jogo.home?.name} ${jogo.goals_home ?? '-'} x ${jogo.goals_away ?? '-'} ${jogo.away?.name}\n\nConfira todos os palpites da rodada direto no app!`;
+    // Captura o elemento HTML exato do card usando a ref do dicionário
+    const elementoCard = cardRefs.current[jogo.id];
+    if (!elementoCard) {
+      alert("Não foi possível renderizar o card.");
+      return;
+    }
 
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'iChute',
-          text: textoCompartilhar,
-          url: window.location.href,
-        });
-      } catch (error) {
-        console.error("Erro ao compartilhar:", error);
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(`${textoCompartilhar}\n\n${window.location.href}`);
-        alert("Texto e link copiados para a área de transferência! 👍");
-      } catch (err) {
-        console.error("Não foi possível copiar", err);
-      }
+    try {
+      // 1. Clonamos os estilos computados para garantir que o layout escuro e fontes fiquem idênticos
+      const xmlSerializer = new XMLSerializer();
+      
+      // Injeta estilos básicos para garantir fontes e backgrounds corretos dentro do SVG temporário
+      const estilosCSS = `
+        <style>
+          * { font-family: sans-serif; box-sizing: border-box; }
+          .bg-\\[\\#1A1C3A\\] { background-color: #1A1C3A !important; }
+          .bg-\\[\\#0A0E2A\\]\\/50 { background-color: rgba(10, 14, 42, 0.5) !important; }
+          .bg-\\[\\#0A0E2A\\]\\/40 { background-color: rgba(10, 14, 42, 0.4) !important; }
+          .text-white { color: #ffffff !important; }
+          .text-white\\/50 { color: rgba(255, 255, 255, 0.5) !important; }
+          .text-white\\/20 { color: rgba(255, 255, 255, 0.2) !important; }
+          .text-\\[\\#0077FF\\] { color: #0077FF !important; }
+          .bg-\\[\\#39FF14\\] { background-color: #39FF14 !important; }
+          .text-\\[\\#2B302A\\] { color: #2B302A !important; }
+        </style>
+      `;
+
+      // Oculta temporariamente o próprio botão de compartilhar para ele não sair no "print"
+      const botaoShare = elementoCard.querySelector('button');
+      if (botaoShare) botaoShare.style.display = 'none';
+
+      const largura = elementoCard.offsetWidth || 450;
+      const altura = elementoCard.offsetHeight || 500;
+      const htmlString = xmlSerializer.serializeToString(elementoCard);
+
+      // Restaura o botão na tela logo após a captura
+      if (botaoShare) botaoShare.style.display = 'block';
+
+      // 2. Cria o SVG contendo o HTML usando foreignObject
+      const svgString = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${largura}" height="${altura}">
+          <foreignObject width="100%" height="100%">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="width:${largura}px; height:${altura}px; padding:0; margin:0; border-radius:30px; overflow:hidden;">
+              ${estilosCSS}
+              ${htmlString}
+            </div>
+          </foreignObject>
+        </svg>
+      `;
+
+      // 3. Converte o SVG para uma URL de imagem executável
+      const blobSVG = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const urlSVG = URL.createObjectURL(blobSVG);
+
+      // 4. Desenha em um Canvas em memória para exportar como PNG limpo
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = urlSVG;
+
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = largura;
+        canvas.height = altura;
+        const ctx = canvas.getContext('2d');
+        
+        // Renderiza a imagem gerada no Canvas
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(urlSVG);
+
+        // Transforma o canvas em um arquivo binário Blob (.png)
+        canvas.toBlob(async (blobPng) => {
+          if (!blobPng) {
+            alert("Erro ao gerar arquivo de imagem.");
+            return;
+          }
+
+          // Cria o arquivo formalizado para o sistema operacional compartilhar
+          const nomeArquivo = `iChute-${jogo.home?.name || 'jogo'}-x-${jogo.away?.name || 'jogo'}.png`;
+          const arquivoImagem = new File([blobPng], nomeArquivo, { type: 'image/png' });
+
+          // Texto complementar padrão para acompanhar o arquivo de imagem
+          const textoCompartilhar = `🏆 *iChute* 🏆\nConfira o comparativo do confronto direto no app!`;
+
+          // Dispara o compartilhamento nativo contendo o arquivo real da imagem
+          if (navigator.canShare && navigator.canShare({ files: [arquivoImagem] })) {
+            try {
+              await navigator.share({
+                files: [arquivoImagem],
+                title: 'iChute Comparativo',
+                text: textoCompartilhar
+              });
+            } catch (shareErr) {
+              console.error("Cancelado ou erro no share nativo:", shareErr);
+            }
+          } else {
+            // Fallback caso o navegador não permita compartilhar arquivos diretos (ex: desktops antigos)
+            const linkDownloadTemp = document.createElement('a');
+            linkDownloadTemp.href = URL.createObjectURL(blobPng);
+            linkDownloadTemp.download = nomeArquivo;
+            linkDownloadTemp.click();
+            alert("Seu navegador não suporta envio direto de imagens. O card foi baixado automaticamente! 👍");
+          }
+        }, 'image/png');
+      };
+
+    } catch (err) {
+      console.error("Erro na geração do card:", err);
+      alert("Houve um problema ao processar a imagem do card.");
     }
   };
 
@@ -427,7 +516,7 @@ export default function Comparison() {
             >
               {/* Botão de Compartilhar no Canto Superior Direito */}
               <button 
-                onClick={() => handleShareCard(jogo.id)}
+                onClick={() => handleShareCard(jogo)}
                 className="absolute top-4 right-5 text-white/30 hover:text-[#0077FF] transition-colors z-20"
                 title="Compartilhar resultado"
               >
