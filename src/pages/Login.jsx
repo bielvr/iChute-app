@@ -65,7 +65,7 @@ export default function Login() {
           </h1>
           
           <p className="text-gray-400 text-sm md:text-base max-w-md">
-            O **iChute** é o espaço ideal para criar bolões esportivos e competir com seus amigos. Sinta a adrenalina de cada rodada sem envolver apostas financeiras.
+            O iChute é o espaço ideal para criar bolões esportivos e competir com seus amigos. Sinta a adrenalina de cada rodada sem envolver apostas financeiras.
           </p>
 
           {/* LISTA DE BENEFÍCIOS */}
