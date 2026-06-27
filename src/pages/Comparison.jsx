@@ -17,7 +17,6 @@ export default function Comparison() {
   const [sportId, setSportId] = useState(null);
   const [officialLeagueId, setOfficialLeagueId] = useState(null);
   const [temporadaAtiva, setTemporadaAtiva] = useState('');
-  const [sportId, setSportId] = useState(null);
 
   // Dicionário de referências para capturar cada card individualmente
   const cardRefs = useRef({});
