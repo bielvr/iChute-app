@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom'; // Adicionado Link
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 import Logo from '../components/Logo';
@@ -12,7 +12,7 @@ export default function Ranking() {
   const [activeTab, setActiveTab] = useState('liga'); // 'liga' ou 'global'
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [sportId, setSportId] = useState(null); // Estado para o ID da modalidade
+  const [sportId, setSportId] = useState(null);
   
   // Estados - Ranking da Liga
   const [rankingLiga, setRankingLiga] = useState([]);
@@ -61,10 +61,10 @@ export default function Ranking() {
             setTemporadaSelecionada(uniqueSeasons[0]);
             await getRankingLigaData(uniqueSeasons[0]);
           }
+
+          // Dispara o ranking global injetando o ID da liga oficial de escopo
+          await getRankingGlobalData(userLeagueInfo.official_league_id);
         }
-        
-        // Carrega o Ranking Global em background
-        await getRankingGlobalData();
 
       } catch (err) {
         console.error("Erro no setup do ranking:", err);
@@ -89,9 +89,10 @@ export default function Ranking() {
     if (data) setRankingLiga(data);
   }
 
-  // 2. Lógica do RANKING GLOBAL (Corrigido para isolar métricas sem sobreposição automática)
-  async function getRankingGlobalData() {
+  // 2. Lógica do RANKING GLOBAL (Restrito à liga real do sistema correspondente)
+  async function getRankingGlobalData(officialLeagueId) {
     try {
+      // Filtra estritamente pelos jogos encerrados pertencentes a esta liga oficial específica
       const { data: allPredictions, error } = await supabase
         .from('predictions')
         .select(`
@@ -99,9 +100,10 @@ export default function Ranking() {
           prediction_home,
           prediction_away,
           users ( name ),
-          matches!inner ( goals_home, goals_away, status )
+          matches!inner ( goals_home, goals_away, status, league_id )
         `)
-        .eq('matches.status', 'finished');
+        .eq('matches.status', 'finished')
+        .eq('matches.league_id', officialLeagueId);
 
       if (error) throw error;
 
@@ -130,12 +132,9 @@ export default function Ranking() {
         const palpH = p.prediction_home;
         const pAway = p.prediction_away;
 
-        // --- CORREÇÃO DA LÓGICA DE SOMA DOS ACERTOS ---
         if (realH === palpH && realA === pAway) {
-          // Placar EXATO: Conta estritamente como Cravada
           stat.cravadas += 1;
         } else {
-          // Não cravou o placar. Vamos avaliar tendência e gols isolados de forma independente:
           const venceuHomeReal = realH > realA;
           const venceuAwayReal = realA > realH;
           const empateReal = realH === realA;
@@ -144,18 +143,15 @@ export default function Ranking() {
           const venceuAwayPalp = pAway > palpH;
           const empatePalp = palpH === pAway;
 
-          // Acertou quem ganhou ou se deu empate
           if ((venceuHomeReal && venceuHomePalp) || (venceuAwayReal && venceuAwayPalp) || (empateReal && empatePalp)) {
             stat.acertoW += 1;
           }
           
-          // Acertos isolados de gols por equipe
           if (realH === palpH) stat.acertoGols += 1;
           if (realA === pAway) stat.acertoGols += 1;
         }
       });
 
-      // Ordenação de eficiência global estável
       const sortedGlobal = Object.values(userStats).sort((a, b) => 
         b.cravadas - a.cravadas || b.acertoW - a.acertoW || b.acertoGols - a.acertoGols
       );
@@ -228,7 +224,7 @@ export default function Ranking() {
                     score={user.total_points} 
                     scoreLabel="PONTOS"
                     cravadas={user.cravadas} 
-                    vencedores={user.vencedor_only} // Corrigido para não embutir a cravada na visualização da liga local
+                    vencedores={user.vencedor_only} 
                     gols={user.vencedor_bonus} 
                     jogos={user.total_jogos} 
                   />
@@ -242,7 +238,7 @@ export default function Ranking() {
             <>
               <div className="bg-[#1A1C3A]/40 border border-dashed border-[#26283A] p-4 rounded-2xl text-center mb-2">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-                  💡 Este ranking ignora pontuações locais. O critério de desempate é: <br/>
+                  💡 Este ranking considera todos os competidores desta modalidade oficial. O critério é: <br/>
                   <span className="text-[#0077FF] font-black">Cravadas</span> → <span className="text-green-400 font-black">Acertos de Vitória/Empate</span> → <span className="text-amber-400 font-black">Gols Individuais</span>.
                 </p>
               </div>
