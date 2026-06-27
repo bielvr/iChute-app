@@ -67,7 +67,6 @@ export default function Predictions() {
 
         setLigaNome(infoLiga.name);
         setOfficialLeagueId(infoLiga.official_league_id);
-        setSportId(infoLiga.leagues.sport_id);
 
         if (userData?.id && infoLiga.owner_id === userData.id) {
           setIsOwner(true);

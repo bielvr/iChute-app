@@ -39,7 +39,6 @@ export default function Ranking() {
           .select('official_league_id')
           .eq('id', ligaId)
           .single();
-          setSportId(infoLiga.leagues.sport_id);
 
         if (userLeagueInfo) {
           const { data: seasonsData } = await supabase
