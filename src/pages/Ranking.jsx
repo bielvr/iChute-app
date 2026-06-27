@@ -12,6 +12,7 @@ export default function Ranking() {
   const [activeTab, setActiveTab] = useState('liga'); // 'liga' ou 'global'
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [sportId, setSportId] = useState(null);
   
   // Estados - Ranking da Liga
   const [rankingLiga, setRankingLiga] = useState([]);
@@ -39,6 +40,7 @@ export default function Ranking() {
           .select('official_league_id')
           .eq('id', ligaId)
           .single();
+          setSportId(infoLiga.leagues.sport_id);
 
         if (userLeagueInfo) {
           const { data: seasonsData } = await supabase
@@ -95,7 +97,7 @@ export default function Ranking() {
           users ( name ),
           matches!inner ( goals_home, goals_away, status )
         `)
-        .eq('matches.status', 'FT'); // Apenas jogos encerrados de verdade
+        .eq('matches.status', 'finished'); // Apenas jogos encerrados de verdade
 
       if (error) throw error;
 
@@ -161,11 +163,16 @@ export default function Ranking() {
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans">
       <header className="max-w-2xl mx-auto flex justify-between items-center mb-6">
-        <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic transition-all hover:bg-[#0077FF]">
-          ← VOLTAR
-        </button>
+        <button 
+            onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
+            className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
+          >
+            ← VOLTAR
+          </button>
         <div className="text-right">
-          <Logo size="sm" />
+          <Link to="/" className="block">
+                <Logo size="sm" />
+              </Link>
           <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Líderes de Palpites</span>
         </div>
       </header>

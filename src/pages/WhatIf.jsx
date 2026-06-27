@@ -60,6 +60,7 @@ export default function WhatIf() {
   const [isFootball, setIsFootball] = useState(true);
   const [isWorldCup, setIsWorldCup] = useState(false);
   const [tabelaCalculada, setTabelaCalculada] = useState([]);
+  const [sportId, setSportId] = useState(null);
 
   // Filtros NHL / Copa
   const [filtroConferencia, setFiltroConferencia] = useState('Todas');
@@ -85,6 +86,7 @@ export default function WhatIf() {
         .select(`name, official_league_id, leagues (sport_id)`)
         .eq('id', ligaId)
         .single();
+        setSportId(infoLiga.leagues.sport_id);
 
       setLigaNome(infoLiga.name);
       
@@ -271,9 +273,12 @@ export default function WhatIf() {
   return (
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 font-sans pb-40 overflow-x-hidden">
       <header className="max-w-7xl mx-auto flex justify-between items-center mb-6">
-        <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic hover:bg-[#0077FF] transition-all">
-          ← VOLTAR
-        </button>
+        <button 
+            onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
+            className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
+          >
+            ← VOLTAR
+          </button>
         <div className="text-right">
           <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter leading-none">CENÁRIO "E SE?"</h1>
           <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block mt-1">{ligaNome}</span>

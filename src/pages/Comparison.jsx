@@ -17,6 +17,7 @@ export default function Comparison() {
   const [sportId, setSportId] = useState(null);
   const [officialLeagueId, setOfficialLeagueId] = useState(null);
   const [temporadaAtiva, setTemporadaAtiva] = useState('');
+  const [sportId, setSportId] = useState(null);
 
   // Dicionário de referências para capturar cada card individualmente
   const cardRefs = useRef({});
@@ -44,9 +45,10 @@ export default function Comparison() {
         5: "Oitavas de final",
         6: "Quartas de final",
         7: "Semifinal",
-        8: "Final"
+        8: "3º Lugar",
+        9: "Final"
       };
-      return fasesCopa[r] || `${r}ª FASE`;
+      return fasesCopa[r] || `${r}ª RODADA`;
     }
     return `${r}ª RODADA`;
   };
@@ -87,6 +89,7 @@ export default function Comparison() {
 
         const sId = ligaInfo.leagues?.sport_id;
         setSportId(sId);
+        setSportId(infoLiga.leagues.sport_id);
         const football = sId === 1;
         setIsFootball(football);
         setOfficialLeagueId(ligaInfo.official_league_id);
@@ -391,11 +394,16 @@ export default function Comparison() {
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans subpixel-antialiased">
       <header className="max-w-2xl mx-auto flex flex-col gap-3 mb-6">
         <div className="flex justify-between items-center mb-2">
-          <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A] uppercase italic transition-all hover:bg-[#0077FF]">
+          <button 
+            onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
+            className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
+          >
             ← VOLTAR
           </button>
           <div className="text-right">
-            <Logo size="sm" />
+            <Link to="/" className="block">
+                <Logo size="sm" />
+              </Link>
             <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Liga</span>
           </div>
         </div>

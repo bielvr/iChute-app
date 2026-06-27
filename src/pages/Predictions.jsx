@@ -42,9 +42,10 @@ export default function Predictions() {
         5: "Oitavas de final",
         6: "Quartas de final",
         7: "Semifinal",
-        8: "Final"
+        8: "3º Lugar",
+        9: "Final"
       };
-      return fasesCopa[r] || `${r}ª FASE`;
+      return fasesCopa[r] || `${r}ª RODADA`;
     }
     return `${r}ª RODADA`;
   };
