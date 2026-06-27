@@ -162,7 +162,7 @@ export default function Ranking() {
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans">
       <header className="max-w-2xl mx-auto flex justify-between items-center mb-6">
         <button 
-            onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
+            onClick={() => navigate('/home')} 
             className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
           >
             ← VOLTAR

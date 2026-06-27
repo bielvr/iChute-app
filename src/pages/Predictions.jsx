@@ -402,7 +402,7 @@ export default function Predictions() {
         <div className="flex items-center justify-between mb-2">
           {/* BOTÃO VOLTAR ALTERADO PARA APONTAR DIRETAMENTE PARA A PÁGINA DE LIGAS */}
           <button 
-            onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
+            onClick={() => navigate('/home')} 
             className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
           >
             ← VOLTAR
