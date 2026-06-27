@@ -16,6 +16,7 @@ export default function Predictions() {
   const [saving, setSaving] = useState(false);
   const [numericUserId, setNumericUserId] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [sportId, setSportId] = useState(null);
 
   // Estado para controlar o feedback de salvamento individual
   const [statusSalvamento, setStatusSalvamento] = useState({});
@@ -32,6 +33,21 @@ export default function Predictions() {
   const [calendarioAberto, setCalendarioAberto] = useState(false);
   const [mesAtualCalendario, setMesAtualCalendario] = useState(new Date());
   const [contagemJogosPorDia, setContagemJogosPorDia] = useState({});
+
+  // --- NOVA FUNÇÃO PARA MAPEAR AS FASES DA COPA ---
+  const formatarNomeRodada = (r) => {
+    if (officialLeagueId === 12) {
+      const fasesCopa = {
+        4: "16 avos de final",
+        5: "Oitavas de final",
+        6: "Quartas de final",
+        7: "Semifinal",
+        8: "Final"
+      };
+      return fasesCopa[r] || `${r}ª FASE`;
+    }
+    return `${r}ª RODADA`;
+  };
 
   useEffect(() => {
     async function initPage() {
@@ -50,6 +66,7 @@ export default function Predictions() {
 
         setLigaNome(infoLiga.name);
         setOfficialLeagueId(infoLiga.official_league_id);
+        setSportId(infoLiga.leagues.sport_id);
 
         if (userData?.id && infoLiga.owner_id === userData.id) {
           setIsOwner(true);
@@ -285,7 +302,6 @@ export default function Predictions() {
     }));
   };
 
-  // --- NOVA FUNÇÃO AUXILIAR DE VALIDAÇÃO DE HORÁRIO ---
   const jogoJaComecou = (matchDateString) => {
     return new Date() >= new Date(matchDateString);
   };
@@ -293,7 +309,6 @@ export default function Predictions() {
   const salvarPalpiteIndividual = async (matchId) => {
     if (!numericUserId) return;
     
-    // Procura o jogo no estado local para checar o horário
     const jogoInfo = jogos.find(j => j.id === parseInt(matchId));
     if (jogoInfo && jogoJaComecou(jogoInfo.date)) {
       setStatusSalvamento(prev => ({ ...prev, [matchId]: 'erro' }));
@@ -339,7 +354,6 @@ export default function Predictions() {
     if (!numericUserId) return alert("Erro: Usuário não identificado");
     setSaving(true);
 
-    // Filtra os payloads removendo os jogos que já começaram
     const payloads = Object.keys(palpites)
       .filter(id => {
         const valido = palpiteGridValido(palpites[id]);
@@ -386,19 +400,28 @@ export default function Predictions() {
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 font-sans pb-40 overflow-x-hidden">
       <header className="max-w-2xl mx-auto mb-8 flex flex-col gap-3">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={() => navigate(-1)} className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]">← VOLTAR</button>
+          {/* BOTÃO VOLTAR ALTERADO PARA APONTAR DIRETAMENTE PARA A PÁGINA DE LIGAS */}
+          <button 
+            onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
+            className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
+          >
+            ← VOLTAR
+          </button>
 
           <div className="flex items-center gap-3 text-right">
-            {isOwner && (
-              <Link 
-                to={`/leagues/${ligaId}/settings`} 
-                className="bg-[#1A1C3A] border border-[#26283A] text-gray-400 hover:text-[#0077FF] hover:border-[#0077FF] p-2.5 rounded-xl text-[10px] font-black uppercase italic transition-all mr-1"
-              >
-                ⚙️
-              </Link>
-            )}
+            {/* CONDICIONAL ISOWNER REMOVIDA: APARECE PARA TODOS */}
+            <Link 
+              to={`/leagues/${ligaId}/settings`} 
+              className="bg-[#1A1C3A] border border-[#26283A] text-gray-400 hover:text-[#0077FF] hover:border-[#0077FF] p-2.5 rounded-xl text-[10px] font-black uppercase transition-all mr-1"
+            >
+              ⚙️
+            </Link>
+            
             <div>
-              <Logo size="sm" />
+              {/* LOGO ENVOLVIDA EM LINK PARA MANDAR PARA A HOME DO APP */}
+              <Link to="/" className="block">
+                <Logo size="sm" />
+              </Link>
               <span className="text-white block text-sm opacity-80">{ligaNome}</span>
             </div>
           </div>
@@ -411,7 +434,11 @@ export default function Predictions() {
               onChange={(e) => handleMudancaRodada(e.target.value)}
               className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 pr-10 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none appearance-none cursor-pointer select-none text-sm tracking-wide"
             >
-              {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
+              {listaRodadas.map(r => (
+                <option key={r} value={r}>
+                  {formatarNomeRodada(r)}
+                </option>
+              ))}
             </select>
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#0077FF] pointer-events-none">▼</span>
           </div>
@@ -502,13 +529,11 @@ export default function Predictions() {
           <p className="text-center p-10 opacity-30 font-black italic uppercase">Sem jogos para este dia</p>
         ) : (
           jogos.map((jogo) => {
-            // Verifica o prazo de cada jogo no loop de renderização
             const bloqueado = jogoJaComecou(jogo.date);
 
             return (
               <div key={jogo.id} className={`relative bg-[#1A1C3A] border p-4 sm:p-8 rounded-[35px] shadow-2xl w-full mx-auto overflow-hidden transition-opacity ${bloqueado ? 'border-red-900/30 opacity-60' : 'border-[#26283A]'}`}>
                 
-                {/* Badge visual de jogo bloqueado */}
                 {bloqueado && (
                   <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-red-600/20 border border-red-500/30 px-3 py-0.5 rounded-full text-[8px] font-black text-red-400 tracking-widest uppercase italic">
                     Palpites Encerrados
@@ -525,7 +550,7 @@ export default function Predictions() {
                     <div className="flex items-center gap-1 sm:gap-3 bg-[#0A0E2A] p-2 sm:p-4 rounded-[25px] border border-[#26283A]">
                       <input 
                         type="number" 
-                        disabled={bloqueado} // <-- INPUT DESABILITADO
+                        disabled={bloqueado} 
                         value={palpites[jogo.id]?.home ?? ""} 
                         onChange={(e) => handleInputChange(jogo.id, 'home', e.target.value)}
                         onBlur={() => salvarPalpiteIndividual(jogo.id)}
@@ -535,7 +560,7 @@ export default function Predictions() {
                       <span className="text-[#26283A] font-black italic text-lg sm:text-2xl">X</span>
                       <input 
                         type="number" 
-                        disabled={bloqueado} // <-- INPUT DESABILITADO
+                        disabled={bloqueado} 
                         value={palpites[jogo.id]?.away ?? ""} 
                         onChange={(e) => handleInputChange(jogo.id, 'away', e.target.value)}
                         onBlur={() => salvarPalpiteIndividual(jogo.id)}

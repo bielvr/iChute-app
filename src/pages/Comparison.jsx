@@ -36,6 +36,21 @@ export default function Comparison() {
   const [mesAtualCalendario, setMesAtualCalendario] = useState(new Date());
   const [contagemJogosPorDia, setContagemJogosPorDia] = useState({});
 
+  // --- NOVA FUNÇÃO PARA MAPEAR AS FASES DA COPA ---
+  const formatarNomeRodada = (r) => {
+    if (officialLeagueId === 12) {
+      const fasesCopa = {
+        4: "16 avos de final",
+        5: "Oitavas de final",
+        6: "Quartas de final",
+        7: "Semifinal",
+        8: "Final"
+      };
+      return fasesCopa[r] || `${r}ª FASE`;
+    }
+    return `${r}ª RODADA`;
+  };
+
   useEffect(() => {
     async function loadBaseData() {
       if (!ligaId) return;
@@ -146,7 +161,7 @@ export default function Comparison() {
       }
     }
     loadBaseData();
-  }, [ligaId]);
+  }, [ligaId, officialLeagueId]); // Adicionado officialLeagueId como dependência segura
 
   async function buscarContagemJogos(offId, seasonStr, footballMode, roundValue) {
     try {
@@ -239,20 +254,13 @@ export default function Comparison() {
     fetchMatches(officialLeagueId, temporadaAtiva, novaDataFoco);
   };
 
-  // Função auxiliar interna para evitar contaminação do canvas (Tainted Canvas CORS)
-  // Função auxiliar interna atualizada com Cache Bypass para evitar Tainted Canvas
   const converterImagemParaBase64 = (url) => {
     return new Promise((resolve) => {
       if (!url) return resolve('');
       const img = new Image();
-      
-      // O truque: Adicionar um timestamp/query param força o navegador a ignorar o cache local
-      // e validar o cabeçalho de CORS direto na fonte de forma limpa.
       const urlComBypass = url.includes('?') ? `${url}&cors=bypass` : `${url}?cors=bypass`;
-      
       img.crossOrigin = 'anonymous';
       img.src = urlComBypass;
-      
       img.onload = () => {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
@@ -263,12 +271,12 @@ export default function Comparison() {
           resolve(canvas.toDataURL('image/png'));
         } catch (e) {
           console.error("Erro ao renderizar imagem no canvas intermediário:", e);
-          resolve(''); // Retorna vazio para não quebrar o design
+          resolve('');
         }
       };
       img.onerror = () => {
         console.warn("Não foi possível carregar a imagem via CORS:", url);
-        resolve(''); // Se der erro, resolve vazio para o card gerar sem o escudo, mas não travar tudo
+        resolve('');
       };
     });
   };
@@ -283,25 +291,18 @@ export default function Comparison() {
     }
 
     try {
-      // Opcional: Ocultar temporariamente o botão de compartilhar antes do print
       const botaoShare = elementoCard.querySelector('button');
       if (botaoShare) botaoShare.style.visibility = 'hidden';
 
-      // Configurações do html-to-image para garantir qualidade e forçar o CORS correto
       const dataUrl = await htmlToImage.toPng(elementoCard, {
         quality: 0.95,
-        backgroundColor: '#1A1C3A', // Garante o fundo do card mesmo clonado
-        style: {
-          borderRadius: '30px',
-        },
-        // Força a validação de CORS para os escudos vindos do Supabase/externos
+        backgroundColor: '#1A1C3A',
+        style: { borderRadius: '30px' },
         cacheBust: true, 
       });
 
-      // Restaurar o botão de compartilhar após a captura
       if (botaoShare) botaoShare.style.visibility = 'visible';
 
-      // Converte a DataURL gerada para um Blob PNG para poder usar no navigator.share
       const res = await fetch(dataUrl);
       const blobPng = await res.blob();
 
@@ -320,7 +321,6 @@ export default function Comparison() {
           console.error("Compartilhamento nativo cancelado:", shareErr);
         }
       } else {
-        // Fallback automático para download
         const linkDownloadTemp = document.createElement('a');
         linkDownloadTemp.href = dataUrl;
         linkDownloadTemp.download = nomeArquivo;
@@ -333,7 +333,6 @@ export default function Comparison() {
       alert("Houve um problema ao gerar o print do card.");
     }
   };
-
 
   const gerarDiasDoCalendario = () => {
     const ano = mesAtualCalendario.getFullYear();
@@ -408,7 +407,12 @@ export default function Comparison() {
               onChange={(e) => handleMudancaRodada(e.target.value)}
               className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 pr-10 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none appearance-none cursor-pointer select-none text-sm tracking-wide"
             >
-              {listaRodadas.map(r => <option key={r} value={r}>{r}ª RODADA</option>)}
+              {/* --- ALTERADO AQUI PARA FAZER O MAPEAMENTO COM A NOVA FUNÇÃO --- */}
+              {listaRodadas.map(r => (
+                <option key={r} value={r}>
+                  {formatarNomeRodada(r)}
+                </option>
+              ))}
             </select>
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#0077FF] pointer-events-none">▼</span>
           </div>
@@ -497,7 +501,6 @@ export default function Comparison() {
               ref={el => cardRefs.current[jogo.id] = el}
               className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px] relative overflow-hidden"
             >
-              {/* Botão de Compartilhar no Canto Superior Direito */}
               <button 
                 onClick={() => handleShareCard(jogo)}
                 className="absolute top-4 right-5 text-white/30 hover:text-[#0077FF] transition-colors z-20"
@@ -508,29 +511,24 @@ export default function Comparison() {
                 </svg>
               </button>
 
-              {/* Placar Principal */}
               <div className="flex justify-center items-center gap-6 mb-6 bg-[#0A0E2A]/50 py-4 px-6 rounded-[20px] max-w-md mx-auto">
-                {/* Time Mandante */}
                 <div className="flex items-center gap-3 justify-end w-5/12">
                   <span className="text-[11px] font-black uppercase text-white/80 tracking-wide text-right truncate max-w-[90px]">{jogo.home?.name}</span>
                   <img src={jogo.home?.url_logo} className="w-7 h-7 object-contain" alt="" />
                 </div>
 
-                {/* Gols e X centralizados */}
                 <div className="flex items-center gap-2.5 justify-center w-2/12 select-none">
                   <span className="text-2xl font-black italic tracking-tighter text-white">{jogo.goals_home ?? '-'}</span>
                   <span className="text-[#0077FF] text-xs font-black italic opacity-40">X</span>
                   <span className="text-2xl font-black italic tracking-tighter text-white">{jogo.goals_away ?? '-'}</span>
                 </div>
 
-                {/* Time Visitante */}
                 <div className="flex items-center gap-3 justify-start w-5/12">
                   <img src={jogo.away?.url_logo} className="w-7 h-7 object-contain" alt="" />
                   <span className="text-[11px] font-black uppercase text-white/80 tracking-wide text-left truncate max-w-[90px]">{jogo.away?.name}</span>
                 </div>
               </div>
 
-              {/* Lista de Membros e Seus Palpites */}
               <div className="grid gap-2">
                 {usuarios.map((u) => {
                   const p = palpitesMatriz[jogo.id]?.[u.id];
@@ -542,10 +540,8 @@ export default function Comparison() {
 
                   return (
                     <div key={u.id} className={`flex justify-between items-center p-3 rounded-xl border ${theme.border} bg-[#0A0E2A]/40`}>
-                      {/* Nome Alinhado à Esquerda */}
                       <span className="text-[10px] font-black uppercase italic text-white/50 w-1/4">{u.name.split(' ')[0]}</span>
                       
-                      {/* Palpite Perfeitamente Centralizado */}
                       <div className="w-2/4 flex justify-center">
                         <span className={`font-black italic text-xs tracking-wider ${p ? 'text-white' : 'text-white/20'}`}>
                           {p 
@@ -555,7 +551,6 @@ export default function Comparison() {
                         </span>
                       </div>
 
-                      {/* Caixa de Pontos Alinhada à Direita */}
                       <div className="w-1/4 flex justify-end">
                         <div className={`min-w-[60px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic tracking-wide transition-all ${theme.bg} ${theme.text}`}>
                           {pts} PTS

@@ -13,9 +13,10 @@ export default function LeagueSettings() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
+  const [leagueName, setLeagueName] = useState(""); // Guarda o nome original da liga
+  const [confirmLeagueName, setConfirmLeagueName] = useState(""); // Input de segurança do Admin
   const [points, setPoints] = useState({ exact: 3, winnerOne: 2, winnerOnly: 1 });
   
-  // ESTADOS DA TEMPORADA DINÂMICA
   const [seasons, setSeasons] = useState([]);
   const [currentSeasonFilter, setCurrentSeasonFilter] = useState("");
   const [loadingSeasons, setLoadingSeasons] = useState(true);
@@ -50,11 +51,16 @@ export default function LeagueSettings() {
         return navigate('/home');
       }
 
+      // Buscando também o nome da liga para usar na exclusão de segurança
       const { data: leagueCheck } = await supabase
         .from('user_leagues')
-        .select('owner_id')
+        .select('name, owner_id')
         .eq('id', idDaLigaNum)
         .single();
+
+      if (leagueCheck) {
+        setLeagueName(leagueCheck.name);
+      }
 
       const { data: memberCheck } = await supabase
         .from('user_league_members')
@@ -78,9 +84,8 @@ export default function LeagueSettings() {
         setCurrentUserMemberId(memberCheck.id);
       }
 
-      // Se for admin, carrega as configurações e também busca as temporadas do banco
       if (temAcessoAdmin) {
-        const { data: leagueData } = await supabase
+        const leagueData = await supabase
           .from('user_leagues')
           .select(`
             config_id,
@@ -93,29 +98,25 @@ export default function LeagueSettings() {
           .eq('id', idDaLigaNum)
           .single();
 
-        if (leagueData && leagueData.leagues_config) {
+        if (leagueData.data && leagueData.data.leagues_config) {
           setPoints({
-            exact: leagueData.leagues_config.exact_score_points,
-            winnerOne: leagueData.leagues_config.winner_and_one_goal_points,
-            winnerOnly: leagueData.leagues_config.winner_only_points,
+            exact: leagueData.data.leagues_config.exact_score_points,
+            winnerOne: leagueData.data.leagues_config.winner_and_one_goal_points,
+            winnerOnly: leagueData.data.leagues_config.winner_only_points,
           });
         }
 
-        // BUSCA AS TEMPORADAS REAIS EXISTENTES NO BANCO
         setLoadingSeasons(true);
         const { data: matchesData, error: seasonsError } = await supabase
           .from('matches')
           .select('season');
 
         if (!seasonsError && matchesData) {
-          // Filtra valores nulos/vazios e remove duplicatas usando Set
           const uniqueSeasons = [
             ...new Set(matchesData.map(m => m.season).filter(Boolean))
-          ].sort((a, b) => b.localeCompare(a)); // Ordena do mais recente para o mais antigo
+          ].sort((a, b) => b.localeCompare(a));
 
           setSeasons(uniqueSeasons);
-          
-          // Define a temporada mais recente encontrada como padrão inicial no select
           if (uniqueSeasons.length > 0) {
             setCurrentSeasonFilter(uniqueSeasons[0]);
           }
@@ -192,7 +193,7 @@ export default function LeagueSettings() {
       setMembers(members.filter(m => m.id !== memberId));
       alert("Membro removido com sucesso.");
     } catch (err) {
-      alert("Erro ao remover: " + err.message);
+      alert("Erro ao remover: " + err.message + "\nVerifique se as RLS de DELETE estão criadas.");
     }
   };
 
@@ -222,6 +223,34 @@ export default function LeagueSettings() {
     }
   };
 
+  const handleDeleteLeague = async () => {
+    if (!isAdmin) return alert("Apenas administradores podem deletar a liga.");
+    if (confirmLeagueName !== leagueName) {
+      return alert("O nome digitado não corresponde ao nome da liga!");
+    }
+
+    if (!window.confirm(`ATENÇÃO CRÍTICA:\nTem certeza absoluta que deseja EXCLUIR permanentemente a liga "${leagueName}"? Todos os palpites e pontuações dos membros serão apagados.`)) return;
+
+    setProcessing(true);
+    try {
+      // Como user_league_members referencia user_leagues com chave estrangeira,
+      // idealmente garanta que está em CASCADE no banco, senão apague os membros antes.
+      const { error } = await supabase
+        .from('user_leagues')
+        .delete()
+        .eq('id', Number(ligaId));
+
+      if (error) throw error;
+
+      alert("Liga excluída com sucesso.");
+      navigate('/home');
+    } catch (err) {
+      alert("Erro ao deletar a liga: " + err.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0A0E2A] text-white flex items-center justify-center font-sans">
@@ -243,15 +272,14 @@ export default function LeagueSettings() {
       </header>
 
       <div className="max-w-lg mx-auto space-y-6">
-        {/* VIEW EXCLUSIVA DO ADMIN */}
-        {isAdmin ? (
+        {/* VIEW EXCLUSIVA DO ADMIN - AJUSTE DE REGRAS */}
+        {isAdmin && (
           <section className="bg-[#1A1C3A] p-8 rounded-[40px] border border-[#26283A] shadow-2xl">
             <h2 className="font-black italic uppercase text-sm text-[#0077FF] mb-2">Ajustar Pontuação & Temporada</h2>
             <p className="text-xs text-gray-400 mb-6 leading-relaxed">
               Caso queira mudar as regras de pontos para os próximos jogos da nova temporada, altere os valores abaixo. Os dados anteriores ficarão congelados no histórico.
             </p>
 
-            {/* SELETOR MENU DINÂMICO DE TEMPORADAS */}
             <div className="mb-6">
               <label className="block text-[8px] font-black uppercase mb-2 opacity-50 text-left pl-1">Próxima Temporada (Filtro Ativo)</label>
               <div className="relative">
@@ -273,7 +301,6 @@ export default function LeagueSettings() {
                     ))
                   )}
                 </select>
-                {/* Seta Customizada do Menu Dropdown */}
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-[#0077FF]">
                   <svg className="fill-currentColor h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                     <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
@@ -306,21 +333,6 @@ export default function LeagueSettings() {
               className="w-full bg-[#0077FF] hover:bg-[#0055CC] py-4 rounded-2xl font-black text-sm uppercase shadow-lg active:scale-95 transition-all"
             >
               {processing ? "SALVANDO..." : "💾 APLICAR REGRAS NA LIGA"}
-            </button>
-          </section>
-        ) : (
-          /* VIEW EXCLUSIVA DO MEMBRO - OPÇÃO DE SAIR */
-          <section className="bg-[#1A1C3A] p-6 rounded-[35px] border border-[#26283A] shadow-2xl text-center">
-            <h2 className="font-black italic uppercase text-sm mb-2 text-[#FF3333]">Zona de Perigo</h2>
-            <p className="text-xs text-gray-400 mb-4 leading-relaxed">
-              Se você decidir sair desta liga, deixará de concorrer na tabela de classificação atual e perderá o acesso aos palpites do grupo.
-            </p>
-            <button
-              onClick={handleLeaveLeague}
-              disabled={processing}
-              className="w-full border border-[#FF3333] text-[#FF3333] hover:bg-[#FF3333] hover:text-white py-3 rounded-2xl font-black italic text-xs uppercase transition-all duration-200"
-            >
-              {processing ? "SAINDO..." : "🏃 Sair da Liga"}
             </button>
           </section>
         )}
@@ -357,6 +369,46 @@ export default function LeagueSettings() {
             ))}
           </div>
         </section>
+
+        {/* ZONA DE PERIGO DINÂMICA */}
+        {isAdmin ? (
+          /* SE FOR ADMIN: EXCLUIR A LIGA COPIANDO O NOME */
+          <section className="bg-[#1A1C3A] p-6 rounded-[35px] border border-[#FF3333]/30 shadow-2xl text-center">
+            <h2 className="font-black italic uppercase text-sm mb-2 text-[#FF3333]">Zona de Perigo (Admin)</h2>
+            <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+              Para excluir permanentemente a liga <span className="text-white font-bold">"{leagueName}"</span>, digite o nome dela exatamente igual abaixo:
+            </p>
+            <input 
+              type="text" 
+              value={confirmLeagueName}
+              onChange={e => setConfirmLeagueName(e.target.value)}
+              placeholder={leagueName || "Digite o nome da liga"}
+              className="w-full bg-[#0A0E2A] border border-[#26283A] focus:border-[#FF3333] rounded-xl p-3 text-center font-bold text-white outline-none text-xs mb-3 transition-colors"
+            />
+            <button
+              onClick={handleDeleteLeague}
+              disabled={processing || confirmLeagueName !== leagueName}
+              className="w-full bg-[#FF3333] hover:bg-[#CC2222] disabled:opacity-20 disabled:hover:bg-[#FF3333] text-white py-4 rounded-2xl font-black text-xs uppercase transition-all tracking-wider shadow-lg"
+            >
+              {processing ? "DELETANDO..." : "🚨 DELETAR LIGA DEFINITIVAMENTE"}
+            </button>
+          </section>
+        ) : (
+          /* SE FOR APENAS MEMBRO: OPÇÃO DE SAIR VOLUNTARIAMENTE */
+          <section className="bg-[#1A1C3A] p-6 rounded-[35px] border border-[#FF3333]/30 shadow-2xl text-center">
+            <h2 className="font-black italic uppercase text-sm mb-2 text-[#FF3333]">Zona de Perigo</h2>
+            <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+              Se você decidir sair desta liga, deixará de concorrer na tabela de classificação atual e perderá o acesso aos palpites do grupo.
+            </p>
+            <button
+              onClick={handleLeaveLeague}
+              disabled={processing}
+              className="w-full border border-[#FF3333] text-[#FF3333] hover:bg-[#FF3333] hover:text-white py-3 rounded-2xl font-black italic text-xs uppercase transition-all duration-200"
+            >
+              {processing ? "SAINDO..." : "🏃 Sair da Liga"}
+            </button>
+          </section>
+        )}
       </div>
     </div>
   );
