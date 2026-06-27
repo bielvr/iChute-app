@@ -12,7 +12,6 @@ export default function Ranking() {
   const [activeTab, setActiveTab] = useState('liga'); // 'liga' ou 'global'
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [sportId, setSportId] = useState(null);
   
   // Estados - Ranking da Liga
   const [rankingLiga, setRankingLiga] = useState([]);
