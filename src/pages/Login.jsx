@@ -59,32 +59,36 @@ export default function Login() {
           </div>
           
           <h1 className="text-3xl md:text-5xl font-black italic uppercase tracking-tight leading-none">
-            Transforme seus palpites em <span className="text-[#0077FF]">estatística pura.</span>
+            A emoção de acertar o placar,<span className="text-[#0077FF]"> apenas pela diversão.</span>
           </h1>
           
           <p className="text-gray-400 text-sm md:text-base max-w-md">
-            O **iChute** é uma plataforma inteligente desenvolvida para automatizar, analisar e gerenciar suas previsões esportivas com dashboards interativos em tempo real.
+            O iChute é o espaço ideal para criar bolões esportivos e competir com seus amigos. Sinta a emoção de acertar o resultado final, sem o estresse de envolver dinheiro real.
           </p>
 
-          {/* LISTA DE BENEFÍCIOS / FEATURES */}
+          {/* LISTA DE BENEFÍCIOS / FEATURES - TOTALMENTE ADAPTADA */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left pt-2">
             <div className="bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl">
-              <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">⚡ Análise em Tempo Real</h3>
-              <p className="text-gray-400 text-xs">Acompanhe métricas e dados de performance instantaneamente.</p>
+              <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">⚡ Competição Saudável</h3>
+              <p className="text-gray-400 text-xs">Crie e gerencie ligas privadas e desafie seus amigos em diversos campeonatos.</p>
             </div>
             <div className="bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl">
-              <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">🎯 Gestão Inteligente</h3>
-              <p className="text-gray-400 text-xs">Painel intuitivo construído com tecnologias modernas de mercado.</p>
+              <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">📊 Rankings e Comparativos</h3>
+              <p className="text-gray-400 text-xs">Visualize rankings de liga, comparativos de palpites por jogo e acompanhe KPIs.</p>
+            </div>
+            <div className="bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl col-span-1 sm:col-span-2">
+              <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">⚽ Múltiplos Esportes (Tech Demo)</h3>
+              <p className="text-gray-400 text-xs">Futebol, Hóquei, Beisebol e mais. Mostre sua versatilidade em diferentes modalidades esportivas.</p>
             </div>
           </div>
 
-          {/* CARD DE PREVIEW DA INTERFACE (Mockup opcional) */}
-          <div className="hidden md:block opacity-40 hover:opacity-70 transition-opacity bg-[#1A1C3A] border border-[#26283A] rounded-2xl p-2 overflow-hidden h-32 relative shadow-inner">
+          {/* CARD DE PREVIEW DA INTERFACE (MOCKUP COMPLEXO GERADO) */}
+          <div className="hidden md:block opacity-40 hover:opacity-70 transition-opacity bg-[#1A1C3A] border border-[#26283A] rounded-2xl p-2 overflow-hidden h-40 relative shadow-inner">
             <span className="absolute inset-0 flex items-center justify-center text-xs font-black uppercase italic text-gray-500 tracking-widest">
-              [ Dashboard Preview ]
+              [ Preview do Sistema de Bolões ]
             </span>
-            {/* Quando tiver um print do app rodando, use a tag abaixo: */}
-            {/* <img src="/dashboard-preview.png" alt="Preview do Dashboard" className="w-full h-full object-cover rounded-xl" /> */}
+            {/* Substitua a tag abaixo pelo print gerado (MOCKUP COMPLEXO) */}
+            {/* <img src="/ichute-mockup.png" alt="Preview das Interfaces do iChute" className="w-full h-full object-cover rounded-xl" /> */}
           </div>
         </div>
 
