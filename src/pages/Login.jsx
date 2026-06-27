@@ -54,7 +54,9 @@ export default function Login() {
         
         {/* SEÇÃO DE APRESENTAÇÃO (LANDING PAGE) */}
         <div className="w-full md:w-1/2 flex flex-col space-y-6 text-center md:text-left px-4">
-          <div className="hidden md:flex justify-start">
+          
+          {/* LOGO AMPLIADA - Ajustada para dar mais destaque */}
+          <div className="hidden md:flex justify-start transform scale-125 origin-left mb-4">
             <Logo size="lg" showText={true} />
           </div>
           
@@ -63,33 +65,73 @@ export default function Login() {
           </h1>
           
           <p className="text-gray-400 text-sm md:text-base max-w-md">
-            O iChute é o espaço ideal para criar bolões esportivos e competir com seus amigos. Sinta a emoção de acertar o resultado final, sem o estresse de envolver dinheiro real.
+            O **iChute** é o espaço ideal para criar bolões esportivos e competir com seus amigos. Sinta a adrenalina de cada rodada sem envolver apostas financeiras.
           </p>
 
-          {/* LISTA DE BENEFÍCIOS / FEATURES - TOTALMENTE ADAPTADA */}
+          {/* LISTA DE BENEFÍCIOS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left pt-2">
             <div className="bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl">
               <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">⚡ Competição Saudável</h3>
-              <p className="text-gray-400 text-xs">Crie e gerencie ligas privadas e desafie seus amigos em diversos campeonatos.</p>
+              <p className="text-gray-400 text-xs">Crie ligas privadas e desafie seus amigos em tempo real.</p>
             </div>
             <div className="bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl">
-              <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">📊 Rankings e Comparativos</h3>
-              <p className="text-gray-400 text-xs">Visualize rankings de liga, comparativos de palpites por jogo e acompanhe KPIs.</p>
-            </div>
-            <div className="bg-[#1A1C3A] border border-[#26283A] p-4 rounded-2xl col-span-1 sm:col-span-2">
-              <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">⚽ Múltiplos Esportes (Tech Demo)</h3>
-              <p className="text-gray-400 text-xs">Futebol, Hóquei, Beisebol e mais. Mostre sua versatilidade em diferentes modalidades esportivas.</p>
+              <h3 className="font-bold text-[#0077FF] uppercase italic text-xs mb-1">📊 Rankings Completos</h3>
+              <p className="text-gray-400 text-xs">Acompanhe estatísticas, cravadas e pontuações gerais da rodada.</p>
             </div>
           </div>
 
-          {/* CARD DE PREVIEW DA INTERFACE (MOCKUP COMPLEXO GERADO) */}
-          <div className="hidden md:block opacity-40 hover:opacity-70 transition-opacity bg-[#1A1C3A] border border-[#26283A] rounded-2xl p-2 overflow-hidden h-40 relative shadow-inner">
-            <span className="absolute inset-0 flex items-center justify-center text-xs font-black uppercase italic text-gray-500 tracking-widest">
-              [ Preview do Sistema de Bolões ]
+          {/* SEÇÃO DE PRINTS REAIS (GALERIA RESPONSIVA) */}
+          <div className="pt-4">
+            <span className="text-xs font-black uppercase italic text-gray-500 tracking-widest block mb-3 text-left">
+              📸 Conheça a Interface
             </span>
-            {/* Substitua a tag abaixo pelo print gerado (MOCKUP COMPLEXO) */}
-            {/* <img src="/ichute-mockup.png" alt="Preview das Interfaces do iChute" className="w-full h-full object-cover rounded-xl" /> */}
+            
+            {/* Grid que mostra as imagens lado a lado no desktop e scrollável no mobile */}
+            <div className="grid grid-cols-2 gap-3 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
+              
+              {/* CARD 1: Ranking */}
+              <div className="bg-[#1A1C3A] border border-[#26283A] rounded-xl p-1 overflow-hidden group shadow-lg">
+                <p className="text-[10px] font-bold text-gray-400 uppercase italic p-1">Rankings de Liga</p>
+                <img 
+                  src="/Ranking.jpeg" 
+                  alt="Ranking da Liga iChute" 
+                  className="w-full h-32 object-cover object-top rounded-lg opacity-85 group-hover:opacity-100 transition-opacity"
+                />
+              </div>
+
+              {/* CARD 2: Palpites / Calendário */}
+              <div className="bg-[#1A1C3A] border border-[#26283A] rounded-xl p-1 overflow-hidden group shadow-lg">
+                <p className="text-[10px] font-bold text-gray-400 uppercase italic p-1">Calendário de Jogos</p>
+                <img 
+                  src="/Palpites - calendário.jpeg" 
+                  alt="Calendário de Palpites" 
+                  className="w-full h-32 object-cover object-top rounded-lg opacity-85 group-hover:opacity-100 transition-opacity"
+                />
+              </div>
+
+              {/* CARD 3: Comparativo */}
+              <div className="bg-[#1A1C3A] border border-[#26283A] rounded-xl p-1 overflow-hidden group shadow-lg">
+                <p className="text-[10px] font-bold text-gray-400 uppercase italic p-1">Palpites dos Amigos</p>
+                <img 
+                  src="/Resultados.jpeg" 
+                  alt="Comparativo de Palpites" 
+                  className="w-full h-32 object-cover object-top rounded-lg opacity-85 group-hover:opacity-100 transition-opacity"
+                />
+              </div>
+
+              {/* CARD 4: Modalidades */}
+              <div className="bg-[#1A1C3A] border border-[#26283A] rounded-xl p-1 overflow-hidden group shadow-lg">
+                <p className="text-[10px] font-bold text-gray-400 uppercase italic p-1">Múltiplos Esportes</p>
+                <img 
+                  src="/Home.jpeg" 
+                  alt="Modalidades Disponíveis" 
+                  className="w-full h-32 object-cover object-top rounded-lg opacity-85 group-hover:opacity-100 transition-opacity"
+                />
+              </div>
+
+            </div>
           </div>
+
         </div>
 
         {/* SEÇÃO DO LOGIN (MANTIDA INTACTA MAS INTEGRADA) */}
