@@ -45,7 +45,7 @@ export default function Login() {
     
     if (error) setMessage("Erro: " + error.message);
     else setMessage("Link de recuperação enviado para o e-mail!");
-    getLoading(false);
+    setLoading(false); // Corrigido de getLoading para setLoading
   };
 
   return (
@@ -80,53 +80,61 @@ export default function Login() {
             </div>
           </div>
 
-          {/* SEÇÃO DE PRINTS REAIS (GALERIA RESPONSIVA) */}
-          <div className="pt-4">
-            <span className="text-xs font-black uppercase italic text-gray-500 tracking-widest block mb-3 text-left">
+          {/* SEÇÃO DE PRINTS REAIS (GALERIA RESPONSIVA AJUSTADA) */}
+          <div className="pt-4 text-left">
+            <span className="text-xs font-black uppercase italic text-gray-500 tracking-widest block mb-3">
               📸 Conheça a Interface
             </span>
             
-            {/* Grid que mostra as imagens lado a lado no desktop e scrollável no mobile */}
-            <div className="grid grid-cols-2 gap-3 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
+            {/* Grid ajustado: scroll horizontal no mobile, grid fixo no desktop */}
+            <div className="flex overflow-x-auto pb-4 pt-1 md:pb-0 gap-3 md:grid md:grid-cols-2 max-h-[480px] md:overflow-y-auto pr-1 custom-scrollbar snap-x">
               
               {/* CARD 1: Ranking */}
-              <div className="bg-[#1A1C3A] border border-[#26283A] rounded-xl p-1 overflow-hidden group shadow-lg">
-                <p className="text-[10px] font-bold text-gray-400 uppercase italic p-1">Rankings de Liga</p>
-                <img 
-                  src="/Ranking.jpeg" 
-                  alt="Ranking da Liga iChute" 
-                  className="w-full h-32 object-cover object-top rounded-lg opacity-85 group-hover:opacity-100 transition-opacity"
-                />
+              <div className="flex-shrink-0 w-[200px] md:w-auto bg-[#1A1C3A] border border-[#26283A] rounded-xl p-2 flex flex-col group shadow-lg snap-start">
+                <p className="text-[10px] font-bold text-gray-400 uppercase italic mb-2 px-1">Rankings de Liga</p>
+                <div className="bg-[#0A0E2A] rounded-lg p-1 flex items-center justify-center h-64 md:h-72 overflow-hidden">
+                  <img 
+                    src="/Ranking.jpeg" 
+                    alt="Ranking da Liga iChute" 
+                    className="max-h-full max-w-full object-contain opacity-90 group-hover:opacity-100 transition-opacity"
+                  />
+                </div>
               </div>
 
               {/* CARD 2: Palpites / Calendário */}
-              <div className="bg-[#1A1C3A] border border-[#26283A] rounded-xl p-1 overflow-hidden group shadow-lg">
-                <p className="text-[10px] font-bold text-gray-400 uppercase italic p-1">Calendário de Jogos</p>
-                <img 
-                  src="/Palpites - calendário.jpeg" 
-                  alt="Calendário de Palpites" 
-                  className="w-full h-32 object-cover object-top rounded-lg opacity-85 group-hover:opacity-100 transition-opacity"
-                />
+              <div className="flex-shrink-0 w-[200px] md:w-auto bg-[#1A1C3A] border border-[#26283A] rounded-xl p-2 flex flex-col group shadow-lg snap-start">
+                <p className="text-[10px] font-bold text-gray-400 uppercase italic mb-2 px-1">Calendário de Jogos</p>
+                <div className="bg-[#0A0E2A] rounded-lg p-1 flex items-center justify-center h-64 md:h-72 overflow-hidden">
+                  <img 
+                    src="/Palpites - calendário.jpeg" 
+                    alt="Calendário de Palpites" 
+                    className="max-h-full max-w-full object-contain opacity-90 group-hover:opacity-100 transition-opacity"
+                  />
+                </div>
               </div>
 
               {/* CARD 3: Comparativo */}
-              <div className="bg-[#1A1C3A] border border-[#26283A] rounded-xl p-1 overflow-hidden group shadow-lg">
-                <p className="text-[10px] font-bold text-gray-400 uppercase italic p-1">Palpites dos Amigos</p>
-                <img 
-                  src="/Resultados.jpeg" 
-                  alt="Comparativo de Palpites" 
-                  className="w-full h-32 object-cover object-top rounded-lg opacity-85 group-hover:opacity-100 transition-opacity"
-                />
+              <div className="flex-shrink-0 w-[200px] md:w-auto bg-[#1A1C3A] border border-[#26283A] rounded-xl p-2 flex flex-col group shadow-lg snap-start">
+                <p className="text-[10px] font-bold text-gray-400 uppercase italic mb-2 px-1">Palpites dos Amigos</p>
+                <div className="bg-[#0A0E2A] rounded-lg p-1 flex items-center justify-center h-64 md:h-72 overflow-hidden">
+                  <img 
+                    src="/Resultados.jpeg" 
+                    alt="Comparativo de Palpites" 
+                    className="max-h-full max-w-full object-contain opacity-90 group-hover:opacity-100 transition-opacity"
+                  />
+                </div>
               </div>
 
               {/* CARD 4: Modalidades */}
-              <div className="bg-[#1A1C3A] border border-[#26283A] rounded-xl p-1 overflow-hidden group shadow-lg">
-                <p className="text-[10px] font-bold text-gray-400 uppercase italic p-1">Múltiplos Esportes</p>
-                <img 
-                  src="/Home.jpeg" 
-                  alt="Modalidades Disponíveis" 
-                  className="w-full h-32 object-cover object-top rounded-lg opacity-85 group-hover:opacity-100 transition-opacity"
-                />
+              <div className="flex-shrink-0 w-[200px] md:w-auto bg-[#1A1C3A] border border-[#26283A] rounded-xl p-2 flex flex-col group shadow-lg snap-start">
+                <p className="text-[10px] font-bold text-gray-400 uppercase italic mb-2 px-1">Múltiplos Esportes</p>
+                <div className="bg-[#0A0E2A] rounded-lg p-1 flex items-center justify-center h-64 md:h-72 overflow-hidden">
+                  <img 
+                    src="/Home.jpeg" 
+                    alt="Modalidades Disponíveis" 
+                    className="max-h-full max-w-full object-contain opacity-90 group-hover:opacity-100 transition-opacity"
+                  />
+                </div>
               </div>
 
             </div>
