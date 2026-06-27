@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom'; // Adicionado Link
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 import Logo from '../components/Logo';
@@ -12,6 +12,7 @@ export default function Ranking() {
   const [activeTab, setActiveTab] = useState('liga'); // 'liga' ou 'global'
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [sportId, setSportId] = useState(null); // Estado para o ID da modalidade
   
   // Estados - Ranking da Liga
   const [rankingLiga, setRankingLiga] = useState([]);
@@ -28,19 +29,25 @@ export default function Ranking() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // Busca o ID numérico do usuário
           const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
           if (userData) setCurrentUserId(userData.id);
         }
 
-        // Pega as temporadas disponíveis para a liga atual
+        // Pega as temporadas e o sport_id da liga atual
         const { data: userLeagueInfo } = await supabase
           .from('user_leagues')
-          .select('official_league_id')
+          .select(`
+            official_league_id,
+            leagues:official_league_id (sport_id)
+          `)
           .eq('id', ligaId)
           .single();
 
         if (userLeagueInfo) {
+          if (userLeagueInfo.leagues) {
+            setSportId(userLeagueInfo.leagues.sport_id);
+          }
+
           const { data: seasonsData } = await supabase
             .from('matches')
             .select('season')
@@ -56,7 +63,7 @@ export default function Ranking() {
           }
         }
         
-        // Já engatilha o carregamento do Ranking Global em background
+        // Carrega o Ranking Global em background
         await getRankingGlobalData();
 
       } catch (err) {
@@ -82,10 +89,9 @@ export default function Ranking() {
     if (data) setRankingLiga(data);
   }
 
-  // 2. Lógica do RANKING GLOBAL (Baseado estritamente em critérios de acertos)
+  // 2. Lógica do RANKING GLOBAL (Corrigido para isolar métricas sem sobreposição automática)
   async function getRankingGlobalData() {
     try {
-      // Buscamos os palpites cruzados com os jogos finalizados do sistema inteiro
       const { data: allPredictions, error } = await supabase
         .from('predictions')
         .select(`
@@ -95,7 +101,7 @@ export default function Ranking() {
           users ( name ),
           matches!inner ( goals_home, goals_away, status )
         `)
-        .eq('matches.status', 'finished'); // Apenas jogos encerrados de verdade
+        .eq('matches.status', 'finished');
 
       if (error) throw error;
 
@@ -124,12 +130,12 @@ export default function Ranking() {
         const palpH = p.prediction_home;
         const pAway = p.prediction_away;
 
-        // Regra de validação pura
+        // --- CORREÇÃO DA LÓGICA DE SOMA DOS ACERTOS ---
         if (realH === palpH && realA === pAway) {
+          // Placar EXATO: Conta estritamente como Cravada
           stat.cravadas += 1;
-          stat.acertoGols += 1;
-          stat.acertoW += 1;
         } else {
+          // Não cravou o placar. Vamos avaliar tendência e gols isolados de forma independente:
           const venceuHomeReal = realH > realA;
           const venceuAwayReal = realA > realH;
           const empateReal = realH === realA;
@@ -138,16 +144,18 @@ export default function Ranking() {
           const venceuAwayPalp = pAway > palpH;
           const empatePalp = palpH === pAway;
 
+          // Acertou quem ganhou ou se deu empate
           if ((venceuHomeReal && venceuHomePalp) || (venceuAwayReal && venceuAwayPalp) || (empateReal && empatePalp)) {
             stat.acertoW += 1;
           }
+          
+          // Acertos isolados de gols por equipe
           if (realH === palpH) stat.acertoGols += 1;
           if (realA === pAway) stat.acertoGols += 1;
         }
       });
 
-      // Transforma em array e ordena pelos pesos oficiais de eficiência: 
-      // 1º Cravadas -> 2º Acerto de Tendência (W) -> 3º Gols Isolados
+      // Ordenação de eficiência global estável
       const sortedGlobal = Object.values(userStats).sort((a, b) => 
         b.cravadas - a.cravadas || b.acertoW - a.acertoW || b.acertoGols - a.acertoGols
       );
@@ -162,15 +170,15 @@ export default function Ranking() {
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 pb-40 font-sans">
       <header className="max-w-2xl mx-auto flex justify-between items-center mb-6">
         <button 
-            onClick={() => navigate('/home')} 
-            className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
-          >
-            ← VOLTAR
-          </button>
+          onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
+          className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
+        >
+          ← VOLTAR
+        </button>
         <div className="text-right">
           <Link to="/" className="block">
-                <Logo size="sm" />
-              </Link>
+            <Logo size="sm" />
+          </Link>
           <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Líderes de Palpites</span>
         </div>
       </header>
@@ -220,7 +228,7 @@ export default function Ranking() {
                     score={user.total_points} 
                     scoreLabel="PONTOS"
                     cravadas={user.cravadas} 
-                    vencedores={user.vencedor_only + user.cravadas} 
+                    vencedores={user.vencedor_only} // Corrigido para não embutir a cravada na visualização da liga local
                     gols={user.vencedor_bonus} 
                     jogos={user.total_jogos} 
                   />
@@ -229,7 +237,7 @@ export default function Ranking() {
             </>
           )}
 
-          {/* RENDER DA TAB: RANKING GLOBAL (Por Eficiência de Cravadas) */}
+          {/* RENDER DA TAB: RANKING GLOBAL */}
           {activeTab === 'global' && (
             <>
               <div className="bg-[#1A1C3A]/40 border border-dashed border-[#26283A] p-4 rounded-2xl text-center mb-2">
@@ -270,7 +278,6 @@ export default function Ranking() {
   );
 }
 
-// Sub-componente de Card isolado para reaproveitamento limpo de layout
 function RankingCard({ pos, name, isUser, score, scoreLabel, cravadas, vencedores, gols, jogos }) {
   return (
     <div className={`relative overflow-hidden p-5 rounded-[30px] border transition-all duration-300 ${isUser ? 'bg-[#0077FF] border-white shadow-[0_0_25px_rgba(0,119,255,0.3)] scale-[1.02]' : 'bg-[#1A1C3A] border-[#26283A]'}`}>
@@ -278,36 +285,35 @@ function RankingCard({ pos, name, isUser, score, scoreLabel, cravadas, vencedore
         <div className="flex items-center gap-4">
           <span className={`font-black italic text-xl ${isUser ? 'text-white' : 'text-[#0077FF]'} opacity-50`}>{pos}º</span>
           <div className="flex flex-col">
-            <span className={`font-black uppercase text-sm tracking-tighter italic leading-none ${isUser ? 'text-white' : 'text-white'}`}>{name}</span>
+            <span className="font-black uppercase text-sm tracking-tighter italic leading-none text-white">{name}</span>
             {isUser && <span className="text-[7px] font-black uppercase text-white/70 tracking-widest mt-1">VOCÊ</span>}
           </div>
         </div>
 
         <div className="text-right">
-          <span className={`block font-black text-2xl italic leading-none ${isUser ? 'text-white' : 'text-white'}`}>{score}</span>
+          <span className="block font-black text-2xl italic leading-none text-white">{score}</span>
           <span className={`text-[8px] font-black uppercase tracking-wider ${isUser ? 'text-white/80' : 'text-[#0077FF]'}`}>{scoreLabel}</span>
         </div>
       </div>
 
-      {/* Grid de Estatísticas com Contraste Ajustado para o Usuário Ativo */}
       <div className={`grid grid-cols-4 gap-2 pt-3 border-t ${isUser ? 'border-white/20' : 'border-white/5'} text-center`}>
         <div>
-          <span className={`block font-black text-xs italic ${isUser ? 'text-white' : 'text-white'}`}>{cravadas}</span>
+          <span className="block font-black text-xs italic text-white">{cravadas}</span>
           <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-white' : 'text-gray-500'}`}>Cravadas</span>
         </div>
 
         <div>
-          <span className={`block font-black text-xs italic ${isUser ? 'text-white' : 'text-white'}`}>{vencedores}</span>
+          <span className="block font-black text-xs italic text-white">{vencedores}</span>
           <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-white' : 'text-gray-500'}`}>Vencedor</span>
         </div>
 
         <div>
-          <span className={`block font-black text-xs italic ${isUser ? 'text-white' : 'text-white'}`}>{gols}</span>
+          <span className="block font-black text-xs italic text-white">{gols}</span>
           <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-white' : 'text-gray-500'}`}>Acerto Gols</span>
         </div>
 
         <div>
-          <span className={`block font-black text-xs italic ${isUser ? 'text-white' : 'text-white'}`}>{jogos}</span>
+          <span className="block font-black text-xs italic text-white">{jogos}</span>
           <span className={`block text-[7px] font-black uppercase tracking-tight ${isUser ? 'text-white' : 'text-gray-500'}`}>Palpites</span>
         </div>
       </div>

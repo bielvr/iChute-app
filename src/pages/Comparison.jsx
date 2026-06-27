@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom'; // Adicionado Link que estava faltando
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
 import Logo from '../components/Logo';
@@ -88,7 +88,7 @@ export default function Comparison() {
 
         const sId = ligaInfo.leagues?.sport_id;
         setSportId(sId);
-        setSportId(infoLiga.leagues.sport_id);
+        
         const football = sId === 1;
         setIsFootball(football);
         setOfficialLeagueId(ligaInfo.official_league_id);
@@ -163,7 +163,7 @@ export default function Comparison() {
       }
     }
     loadBaseData();
-  }, [ligaId, officialLeagueId]); // Adicionado officialLeagueId como dependência segura
+  }, [ligaId, officialLeagueId]);
 
   async function buscarContagemJogos(offId, seasonStr, footballMode, roundValue) {
     try {
@@ -254,33 +254,6 @@ export default function Comparison() {
     setDataSelecionada(novaDataFoco);
     setMesAtualCalendario(new Date(novaDataFoco + 'T12:00:00'));
     fetchMatches(officialLeagueId, temporadaAtiva, novaDataFoco);
-  };
-
-  const converterImagemParaBase64 = (url) => {
-    return new Promise((resolve) => {
-      if (!url) return resolve('');
-      const img = new Image();
-      const urlComBypass = url.includes('?') ? `${url}&cors=bypass` : `${url}?cors=bypass`;
-      img.crossOrigin = 'anonymous';
-      img.src = urlComBypass;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        try {
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        } catch (e) {
-          console.error("Erro ao renderizar imagem no canvas intermediário:", e);
-          resolve('');
-        }
-      };
-      img.onerror = () => {
-        console.warn("Não foi possível carregar a imagem via CORS:", url);
-        resolve('');
-      };
-    });
   };
 
   const handleShareCard = async (jogo) => {
@@ -401,8 +374,8 @@ export default function Comparison() {
           </button>
           <div className="text-right">
             <Link to="/" className="block">
-                <Logo size="sm" />
-              </Link>
+              <Logo size="sm" />
+            </Link>
             <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest italic">Comparativo de Liga</span>
           </div>
         </div>
@@ -414,7 +387,6 @@ export default function Comparison() {
               onChange={(e) => handleMudancaRodada(e.target.value)}
               className="w-full bg-[#1A1C3A] border border-[#26283A] p-4 pr-10 rounded-2xl font-black italic uppercase text-[#0077FF] focus:outline-none appearance-none cursor-pointer select-none text-sm tracking-wide"
             >
-              {/* --- ALTERADO AQUI PARA FAZER O MAPEAMENTO COM A NOVA FUNÇÃO --- */}
               {listaRodadas.map(r => (
                 <option key={r} value={r}>
                   {formatarNomeRodada(r)}
@@ -542,7 +514,8 @@ export default function Comparison() {
                   const pts = p?.points || 0;
                   const theme = getPointTheme(pts);
                   
-                  const ehDonoDoPalpite = u.id === (supabase.auth.user?.()?.id || null);
+                  // Mock simples caso queira validar o dono no futuro. Por enquanto mantendo estrutura limpa.
+                  const ehDonoDoPalpite = false; 
                   const revelarPalpite = jogoJaComecou || ehDonoDoPalpite;
 
                   return (

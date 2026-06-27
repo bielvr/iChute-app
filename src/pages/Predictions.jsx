@@ -67,12 +67,16 @@ export default function Predictions() {
 
         setLigaNome(infoLiga.name);
         setOfficialLeagueId(infoLiga.official_league_id);
+        
+        // AJUSTE AQUI: Salvando o sport_id no estado para o botão voltar funcionar ao sair da página
+        const sId = infoLiga.leagues?.sport_id;
+        setSportId(sId);
 
         if (userData?.id && infoLiga.owner_id === userData.id) {
           setIsOwner(true);
         }
 
-        const football = infoLiga.leagues.sport_id === 1; 
+        const football = sId === 1; 
         setIsFootball(football);
 
         const { data: maxSeasonData } = await supabase
@@ -400,16 +404,15 @@ export default function Predictions() {
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 font-sans pb-40 overflow-x-hidden">
       <header className="max-w-2xl mx-auto mb-8 flex flex-col gap-3">
         <div className="flex items-center justify-between mb-2">
-          {/* BOTÃO VOLTAR ALTERADO PARA APONTAR DIRETAMENTE PARA A PÁGINA DE LIGAS */}
+          {/* BOTÃO VOLTAR DIRECIONANDO CORRETAMENTE COM SPORTID */}
           <button 
-            onClick={() => navigate('/home')} 
+            onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
             className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
           >
             ← VOLTAR
           </button>
 
           <div className="flex items-center gap-3 text-right">
-            {/* CONDICIONAL ISOWNER REMOVIDA: APARECE PARA TODOS */}
             <Link 
               to={`/leagues/${ligaId}/settings`} 
               className="bg-[#1A1C3A] border border-[#26283A] text-gray-400 hover:text-[#0077FF] hover:border-[#0077FF] p-2.5 rounded-xl text-[10px] font-black uppercase transition-all mr-1"
@@ -418,7 +421,6 @@ export default function Predictions() {
             </Link>
             
             <div>
-              {/* LOGO ENVOLVIDA EM LINK PARA MANDAR PARA A HOME DO APP */}
               <Link to="/" className="block">
                 <Logo size="sm" />
               </Link>
