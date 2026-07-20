@@ -96,33 +96,47 @@ export default function WhatIf() {
       setIsFootball(football);
       setIsWorldCup(worldCup);
 
-      // 2. Total de jogos por time na liga oficial (para calcular o "S/ Palpite")
-      const { data: allMatches } = await supabase
-        .from('matches')
-        .select('home_team_id, away_team_id')
-        .eq('league_id', infoLiga.official_league_id);
+      // 2. Busca em paralelo: View de estatísticas + Tabela de Times + Jogos
+      const [
+        { data: statsView, error: viewError },
+        { data: teamsData },
+        { data: allMatches }
+      ] = await Promise.all([
+        supabase
+          .from('user_team_what_if_stats')
+          .select('*')
+          .eq('user_id', userData.id)
+          .eq('user_league_id', ligaId),
+        
+        supabase
+          .from('teams')
+          .select('id, name, url_logo'),
 
+        supabase
+          .from('matches')
+          .select('home_team_id, away_team_id')
+          .eq('league_id', infoLiga.official_league_id)
+      ]);
+
+      if (viewError) throw viewError;
+
+      // Mapa de times para consulta rápida O(1)
+      const teamsMap = {};
+      teamsData?.forEach(t => {
+        teamsMap[t.id] = t;
+      });
+
+      // Total de jogos por time para o cálculo de "S/ Palpite"
       const totalMatchesPerTeam = {};
       allMatches?.forEach(m => {
         totalMatchesPerTeam[m.home_team_id] = (totalMatchesPerTeam[m.home_team_id] || 0) + 1;
         totalMatchesPerTeam[m.away_team_id] = (totalMatchesPerTeam[m.away_team_id] || 0) + 1;
       });
 
-      // 3. Consulta direta à View "user_team_what_if_stats" com join na tabela de teams
-      const { data: statsView, error } = await supabase
-        .from('user_team_what_if_stats')
-        .select(`
-          *,
-          team:teams!team_id (id, name, url_logo)
-        `)
-        .eq('user_id', userData.id)
-        .eq('user_league_id', ligaId);
-
-      if (error) throw error;
-
-      // 4. Formata o payload para o componente renderizar
+      // 3. Monta a tabela final combinando os dados da View com as informações do time
       const finalArray = (statsView || []).map(row => {
-        const teamName = row.team?.name || 'Time Desconhecido';
+        const team = teamsMap[row.team_id] || {};
+        const teamName = team.name || 'Time Desconhecido';
         const teamId = row.team_id;
 
         const nhlInfo = NHL_MAPPING[teamName] || { conf: "N/A", div: "N/A" };
@@ -136,12 +150,12 @@ export default function WhatIf() {
         return {
           id: teamId,
           name: teamName,
-          logo: row.team?.url_logo,
+          logo: team.url_logo,
           jogos: row.jogos,
           w: row.w,
           d: row.d,
           l: row.l,
-          otl: row.d, // Para esportes não-futebol reutiliza a contagem de empates/OTL
+          otl: row.d,
           pts: row.pts,
           pPct,
           gf: row.gf,
@@ -159,7 +173,6 @@ export default function WhatIf() {
         };
       });
 
-      // Ordenação padrão da tabela: Pontos > Vitórias > Saldo de Gols
       finalArray.sort((a, b) => b.pts - a.pts || b.w - a.w || b.diff - a.diff);
       setTabelaCalculada(finalArray);
 
