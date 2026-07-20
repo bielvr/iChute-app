@@ -39,7 +39,7 @@ const NHL_MAPPING = {
 const WORLD_CUP_MAPPING = {
   53: { grupo: "Grupo A" }, 54: { grupo: "Grupo E" }, 55: { grupo: "Grupo H" }, 56: { grupo: "Grupo J" },
   57: { grupo: "Grupo J" }, 58: { grupo: "Grupo D" }, 59: { grupo: "Grupo J" }, 60: { grupo: "Grupo G" },
-  61: { grupo: "Grupo B" }, 62: { grupo: "Grupo C" }, 63: { grupo: "Grupo H" }, 64: { gateway: "Grupo B" },
+  61: { grupo: "Grupo B" }, 62: { grupo: "Grupo C" }, 63: { grupo: "Grupo H" }, 64: { grupo: "Grupo B" },
   65: { grupo: "Grupo B" }, 66: { grupo: "Grupo K" }, 67: { grupo: "Grupo K" }, 68: { grupo: "Grupo A" },
   69: { grupo: "Grupo E" }, 70: { grupo: "Grupo L" }, 71: { grupo: "Grupo E" }, 72: { grupo: "Grupo G" },
   73: { grupo: "Grupo E" }, 74: { grupo: "Grupo C" }, 75: { grupo: "Grupo H" }, 76: { grupo: "Grupo D" },
@@ -86,8 +86,10 @@ export default function WhatIf() {
         .select(`name, official_league_id, leagues (sport_id)`)
         .eq('id', ligaId)
         .single();
-        setSportId(infoLiga.leagues.sport_id);
 
+      if (!infoLiga) return;
+
+      setSportId(infoLiga.leagues.sport_id);
       setLigaNome(infoLiga.name);
       
       const football = infoLiga.leagues.sport_id === 1;
@@ -140,22 +142,28 @@ export default function WhatIf() {
         inicializarTime(match.home);
         inicializarTime(match.away);
 
-        const palpite = predMap[match.id];
-        let goalsHome = match.goals_home;
-        let goalsAway = match.goals_away;
-        let temPalpite = !!palpite;
+        // Busca flexível suportando IDs em Number ou String (int8)
+        const palpite = predMap[match.id] || predMap[String(match.id)];
+        const temPalpite = !!palpite;
+        const jogoFinalizado = match.status === 'FT';
 
-        if (temPalpite) {
-          goalsHome = palpite.prediction_home;
-          goalsAway = palpite.prediction_away;
-        }
-
-        if (match.status !== 'FT' && !temPalpite) {
+        // Caso o jogo não tenha ocorrido e o usuário não enviou palpite:
+        if (!jogoFinalizado && !temPalpite) {
           teamsStats[match.home.id].semPalpite += 1;
           teamsStats[match.away.id].semPalpite += 1;
           return; 
         }
 
+        // Define quais gols usar para montar a tabela simulated/what-if
+        let goalsHome = temPalpite ? palpite.prediction_home : match.goals_home;
+        let goalsAway = temPalpite ? palpite.prediction_away : match.goals_away;
+
+        // Se por ventura o placar for nulo (ex: jogo sem palpite que ainda não acabou), pula
+        if (goalsHome === null || goalsHome === undefined || goalsAway === null || goalsAway === undefined) {
+          return;
+        }
+
+        // --- 1. ESTATÍSTICAS DA TABELA PROJETADA ---
         teamsStats[match.home.id].jogos += 1;
         teamsStats[match.away.id].jogos += 1;
         teamsStats[match.home.id].gf += goalsHome;
@@ -179,6 +187,7 @@ export default function WhatIf() {
             teamsStats[match.away.id].pts += 1;
           }
         } else {
+          // Lógica NHL
           if (goalsHome > goalsAway) {
             teamsStats[match.home.id].w += 1;
             teamsStats[match.home.id].pts += 2;
@@ -200,8 +209,8 @@ export default function WhatIf() {
           }
         }
 
-        // BLOCO CORRIGIDO: Cálculo de acertos baseado no palpite do Usuário
-        if (match.status === 'FT' && temPalpite) {
+        // --- 2. CÁLCULO DAS COLUNAS DE ACERTO (Exclusivo para jogos FT com Palpite) ---
+        if (jogoFinalizado && temPalpite) {
           const realH = match.goals_home;
           const realA = match.goals_away;
           const palpH = palpite.prediction_home;
@@ -210,28 +219,30 @@ export default function WhatIf() {
           const tendenciaReal = Math.sign(realH - realA); 
           const tendenciaPalp = Math.sign(palpH - palpA);
 
-          // 1. Cravada (Acerto Exato do Placar)
+          // a) Cravada (Placar exato)
           if (realH === palpH && realA === palpA) {
             teamsStats[match.home.id].cravada += 1;
             teamsStats[match.away.id].cravada += 1;
           }
 
-          // 2. Tendência (Vitória Casa, Empate ou Vitória Fora)
+          // b) Tendência (Mandante x Visitante x Empate)
           if (tendenciaReal === tendenciaPalp) {
-            if (tendenciaReal === 0) {
+            if (tendenciaReal === 1) {
+              // Vitória do Mandante
+              teamsStats[match.home.id].acertoW += 1;
+              teamsStats[match.away.id].acertoD += 1; // Acertou que o visitante perdeu
+            } else if (tendenciaReal === -1) {
+              // Vitória do Visitante
+              teamsStats[match.away.id].acertoW += 1;
+              teamsStats[match.home.id].acertoD += 1; // Acertou que o mandante perdeu
+            } else {
+              // Empate
               teamsStats[match.home.id].acertoE += 1;
               teamsStats[match.away.id].acertoE += 1;
-            } else {
-              teamsStats[match.home.id].acertoW += 1;
-              teamsStats[match.away.id].acertoW += 1;
             }
-          } else {
-            // Errou o vencedor ou errou o empate
-            teamsStats[match.home.id].acertoD += 1;
-            teamsStats[match.away.id].acertoD += 1;
           }
 
-          // 3. Acerto de Gols Isolados (Sempre computa se o número de gols bater)
+          // c) Acerto isolado de quantidade de gols
           if (realH === palpH) teamsStats[match.home.id].acertoGols += 1;
           if (realA === palpA) teamsStats[match.away.id].acertoGols += 1;
         }
@@ -274,11 +285,11 @@ export default function WhatIf() {
     <div className="min-h-screen bg-[#0A0E2A] text-white p-4 font-sans pb-40 overflow-x-hidden">
       <header className="max-w-7xl mx-auto flex justify-between items-center mb-6">
         <button 
-            onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
-            className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
-          >
-            ← VOLTAR
-          </button>
+          onClick={() => navigate(sportId ? `/leagues/${sportId}` : '/home')} 
+          className="bg-[#1A1C3A] text-white px-5 py-2 rounded-2xl text-[10px] font-black border border-[#26283A]"
+        >
+          ← VOLTAR
+        </button>
         <div className="text-right">
           <h1 className="text-xl font-black italic text-[#0077FF] uppercase tracking-tighter leading-none">CENÁRIO "E SE?"</h1>
           <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block mt-1">{ligaNome}</span>
