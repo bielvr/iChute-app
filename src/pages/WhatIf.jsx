@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import BottomNav from '../components/BottomNav';
-import Logo from '../components/Logo';
 
-// Dicionário NHL (Chaveado por Nome conforme original)
+// Dicionário NHL
 const NHL_MAPPING = {
   "Edmonton Oilers": { conf: "Oeste", div: "Pacífico" },
   "Colorado Avalanche": { conf: "Oeste", div: "Central" },
@@ -35,7 +34,7 @@ const NHL_MAPPING = {
   "Columbus Blue Jackets": { conf: "Leste", div: "Metropolitana" }
 };
 
-// Dicionário Oficial da Copa mapeado por ID do Banco de Dados
+// Dicionário Oficial da Copa mapeado por ID
 const WORLD_CUP_MAPPING = {
   53: { grupo: "Grupo A" }, 54: { grupo: "Grupo E" }, 55: { grupo: "Grupo H" }, 56: { grupo: "Grupo J" },
   57: { grupo: "Grupo J" }, 58: { grupo: "Grupo D" }, 59: { grupo: "Grupo J" }, 60: { grupo: "Grupo G" },
@@ -80,7 +79,7 @@ export default function WhatIf() {
       const { data: userData } = await supabase.from('users').select('id').eq('email', user.email).single();
       if (!userData) return;
 
-      // 1. Pega os dados de user_leagues e faz o join correto apontando para leagues (sport_id)
+      // 1. Busca os metadados da liga
       const { data: infoLiga } = await supabase
         .from('user_leagues')
         .select(`name, official_league_id, leagues (sport_id)`)
@@ -89,175 +88,83 @@ export default function WhatIf() {
 
       if (!infoLiga) return;
 
+      const football = infoLiga.leagues.sport_id === 1;
+      const worldCup = infoLiga.official_league_id === 12;
+
       setSportId(infoLiga.leagues.sport_id);
       setLigaNome(infoLiga.name);
-      
-      const football = infoLiga.leagues.sport_id === 1;
-      const worldCup = infoLiga.official_league_id === 12; 
-      
       setIsFootball(football);
       setIsWorldCup(worldCup);
 
-      // 2. Busca os jogos filtrando pela coluna 'league_id' da tabela 'matches'
-      const { data: matches } = await supabase
+      // 2. Total de jogos por time na liga oficial (para calcular o "S/ Palpite")
+      const { data: allMatches } = await supabase
         .from('matches')
-        .select(`*, home:home_team_id(id, name, url_logo), away:away_team_id(id, name, url_logo)`)
+        .select('home_team_id, away_team_id')
         .eq('league_id', infoLiga.official_league_id);
 
-      // 3. Pega os palpites associados a essa liga de amigos
-      const { data: predictions } = await supabase
-        .from('predictions')
-        .select('*')
+      const totalMatchesPerTeam = {};
+      allMatches?.forEach(m => {
+        totalMatchesPerTeam[m.home_team_id] = (totalMatchesPerTeam[m.home_team_id] || 0) + 1;
+        totalMatchesPerTeam[m.away_team_id] = (totalMatchesPerTeam[m.away_team_id] || 0) + 1;
+      });
+
+      // 3. Consulta direta à View "user_team_what_if_stats" com join na tabela de teams
+      const { data: statsView, error } = await supabase
+        .from('user_team_what_if_stats')
+        .select(`
+          *,
+          team:teams!team_id (id, name, url_logo)
+        `)
         .eq('user_id', userData.id)
         .eq('user_league_id', ligaId);
 
-      const predMap = {};
-      predictions?.forEach(p => {
-        predMap[p.match_id] = p;
+      if (error) throw error;
+
+      // 4. Formata o payload para o componente renderizar
+      const finalArray = (statsView || []).map(row => {
+        const teamName = row.team?.name || 'Time Desconhecido';
+        const teamId = row.team_id;
+
+        const nhlInfo = NHL_MAPPING[teamName] || { conf: "N/A", div: "N/A" };
+        const wcInfo = WORLD_CUP_MAPPING[teamId] || { grupo: "N/A" };
+
+        const totalExpected = totalMatchesPerTeam[teamId] || 38;
+        const semPalpite = totalExpected - row.jogos;
+
+        const pPct = row.jogos > 0 ? (row.pts / (row.jogos * 2)).toFixed(2) : "0,00";
+
+        return {
+          id: teamId,
+          name: teamName,
+          logo: row.team?.url_logo,
+          jogos: row.jogos,
+          w: row.w,
+          d: row.d,
+          l: row.l,
+          otl: row.d, // Para esportes não-futebol reutiliza a contagem de empates/OTL
+          pts: row.pts,
+          pPct,
+          gf: row.gf,
+          ga: row.ga,
+          diff: row.diff,
+          acertoW: row.acerto_v,
+          acertoE: row.acerto_e,
+          acertoD: row.acerto_d,
+          acertoGols: row.acerto_gols,
+          cravada: row.cravada,
+          semPalpite: semPalpite < 0 ? 0 : semPalpite,
+          conferencia: nhlInfo.conf,
+          divisao: nhlInfo.div,
+          grupo: wcInfo.grupo
+        };
       });
 
-      const teamsStats = {};
-
-      const inicializarTime = (team) => {
-        if (!teamsStats[team.id]) {
-          const nhlInfo = NHL_MAPPING[team.name] || { conf: "N/A", div: "N/A" };
-          const wcInfo = WORLD_CUP_MAPPING[team.id] || { grupo: "N/A" };
-          
-          teamsStats[team.id] = {
-            id: team.id,
-            name: team.name,
-            logo: team.url_logo,
-            jogos: 0, w: 0, d: 0, l: 0, otl: 0,
-            pts: 0, gf: 0, ga: 0,
-            acertoW: 0, acertoE: 0, acertoD: 0, acertoGols: 0, cravada: 0, semPalpite: 0,
-            conferencia: nhlInfo.conf,
-            divisao: nhlInfo.div,
-            grupo: wcInfo.grupo
-          };
-        }
-      };
-
-      matches?.forEach(match => {
-        if (!match.home || !match.away) return;
-        inicializarTime(match.home);
-        inicializarTime(match.away);
-
-        // Busca flexível suportando IDs em Number ou String (int8)
-        const palpite = predMap[match.id] || predMap[String(match.id)];
-        const temPalpite = !!palpite;
-        const jogoFinalizado = match.status === 'FT';
-
-        // Caso o jogo não tenha ocorrido e o usuário não enviou palpite:
-        if (!jogoFinalizado && !temPalpite) {
-          teamsStats[match.home.id].semPalpite += 1;
-          teamsStats[match.away.id].semPalpite += 1;
-          return; 
-        }
-
-        // Define quais gols usar para montar a tabela simulated/what-if
-        let goalsHome = temPalpite ? palpite.prediction_home : match.goals_home;
-        let goalsAway = temPalpite ? palpite.prediction_away : match.goals_away;
-
-        // Se por ventura o placar for nulo (ex: jogo sem palpite que ainda não acabou), pula
-        if (goalsHome === null || goalsHome === undefined || goalsAway === null || goalsAway === undefined) {
-          return;
-        }
-
-        // --- 1. ESTATÍSTICAS DA TABELA PROJETADA ---
-        teamsStats[match.home.id].jogos += 1;
-        teamsStats[match.away.id].jogos += 1;
-        teamsStats[match.home.id].gf += goalsHome;
-        teamsStats[match.home.id].ga += goalsAway;
-        teamsStats[match.away.id].gf += goalsAway;
-        teamsStats[match.away.id].ga += goalsHome;
-
-        if (football) {
-          if (goalsHome > goalsAway) {
-            teamsStats[match.home.id].w += 1;
-            teamsStats[match.home.id].pts += 3;
-            teamsStats[match.away.id].l += 1;
-          } else if (goalsHome < goalsAway) {
-            teamsStats[match.away.id].w += 1;
-            teamsStats[match.away.id].pts += 3;
-            teamsStats[match.home.id].l += 1;
-          } else {
-            teamsStats[match.home.id].d += 1;
-            teamsStats[match.home.id].pts += 1;
-            teamsStats[match.away.id].d += 1;
-            teamsStats[match.away.id].pts += 1;
-          }
-        } else {
-          // Lógica NHL
-          if (goalsHome > goalsAway) {
-            teamsStats[match.home.id].w += 1;
-            teamsStats[match.home.id].pts += 2;
-            if (goalsHome === goalsAway + 1 && match.status === 'OT') { 
-              teamsStats[match.away.id].otl += 1;
-              teamsStats[match.away.id].pts += 1;
-            } else {
-              teamsStats[match.away.id].l += 1;
-            }
-          } else {
-            teamsStats[match.away.id].w += 1;
-            teamsStats[match.away.id].pts += 2;
-            if (goalsAway === goalsHome + 1 && match.status === 'OT') {
-              teamsStats[match.home.id].otl += 1;
-              teamsStats[match.home.id].pts += 1;
-            } else {
-              teamsStats[match.home.id].l += 1;
-            }
-          }
-        }
-
-        // --- 2. CÁLCULO DAS COLUNAS DE ACERTO (Exclusivo para jogos FT com Palpite) ---
-        if (jogoFinalizado && temPalpite) {
-          const realH = match.goals_home;
-          const realA = match.goals_away;
-          const palpH = palpite.prediction_home;
-          const palpA = palpite.prediction_away;
-
-          const tendenciaReal = Math.sign(realH - realA); 
-          const tendenciaPalp = Math.sign(palpH - palpA);
-
-          // a) Cravada (Placar exato)
-          if (realH === palpH && realA === palpA) {
-            teamsStats[match.home.id].cravada += 1;
-            teamsStats[match.away.id].cravada += 1;
-          }
-
-          // b) Tendência (Mandante x Visitante x Empate)
-          if (tendenciaReal === tendenciaPalp) {
-            if (tendenciaReal === 1) {
-              // Vitória do Mandante
-              teamsStats[match.home.id].acertoW += 1;
-              teamsStats[match.away.id].acertoD += 1; // Acertou que o visitante perdeu
-            } else if (tendenciaReal === -1) {
-              // Vitória do Visitante
-              teamsStats[match.away.id].acertoW += 1;
-              teamsStats[match.home.id].acertoD += 1; // Acertou que o mandante perdeu
-            } else {
-              // Empate
-              teamsStats[match.home.id].acertoE += 1;
-              teamsStats[match.away.id].acertoE += 1;
-            }
-          }
-
-          // c) Acerto isolado de quantidade de gols
-          if (realH === palpH) teamsStats[match.home.id].acertoGols += 1;
-          if (realA === palpA) teamsStats[match.away.id].acertoGols += 1;
-        }
-      });
-
-      const finalArray = Object.values(teamsStats).map(t => {
-        const diff = t.gf - t.ga;
-        const pPct = t.jogos > 0 ? (t.pts / (t.jogos * 2)).toFixed(2) : "0,00";
-        return { ...t, diff, pPct };
-      });
-
+      // Ordenação padrão da tabela: Pontos > Vitórias > Saldo de Gols
       finalArray.sort((a, b) => b.pts - a.pts || b.w - a.w || b.diff - a.diff);
       setTabelaCalculada(finalArray);
+
     } catch (err) {
-      console.error("Erro ao simular cenário 'E se?':", err);
+      console.error("Erro ao carregar View 'E se?':", err);
     } finally {
       setLoading(false);
     }
