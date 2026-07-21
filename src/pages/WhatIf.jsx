@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import BottomNav from '../components/BottomNav';
+import BottomNav from '../components/layout/BottomNav';
 import { getCurrentUser } from '../services/authService';
 import { getUserLeagueDetails } from '../services/leagueService';
 import { getWhatIfScenario } from '../services/whatIfService';

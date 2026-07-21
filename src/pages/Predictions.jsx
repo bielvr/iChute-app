@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import BottomNav from '../components/BottomNav';
+import BottomNav from '../components/layout/BottomNav';
 import Logo from '../components/Logo';
 import CalendarPicker from '../components/layout/CalendarPicker';
 import { getCurrentUser } from '../services/authService';
