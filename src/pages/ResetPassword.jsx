@@ -12,7 +12,7 @@ export default function ResetPassword() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Verifica se a URL atual contém o token de acesso vindo do e-mail de recuperação
+    
     const hasToken = window.location.hash.includes("access_token=") || 
                      window.location.search.includes("type=recovery");
 

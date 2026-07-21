@@ -1,28 +1,4 @@
-export const SPORTS = {
-
-    1: {
-        key: "football",
-        translation: "sports.football"
-    },
-
-    2: {
-        key: "ice_hockey",
-        translation: "sports.ice_hockey"
-    },
-
-    3: {
-        key: "baseball",
-        translation: "sports.baseball"
-    },
-
-    4: {
-        key: "basketball",
-        translation: "sports.basketball"
-    },
-
-    5: {
-        key: "american_football",
-        translation: "sports.american_football"
-    }
-
+export const SPORT_METADATA = {
+  1: { icon: '⚽', translationKey: 'football' }, 2: { icon: '🏒', translationKey: 'iceHockey' }, 3: { icon: '🏎️', translationKey: 'motorsport' }, 4: { icon: '🚲', translationKey: 'cycling' }, 5: { icon: '🏀', translationKey: 'basketball' }, 6: { icon: '⚾', translationKey: 'baseball' }, 7: { icon: '🏈', translationKey: 'americanFootball' }, 8: { icon: '🎾', translationKey: 'tennis' }, 9: { icon: '🏐', translationKey: 'volleyball' },
 };
+export function getSportMetadata(sport) { return SPORT_METADATA[sport.id] ?? { icon: '🏆', translationKey: null }; }
