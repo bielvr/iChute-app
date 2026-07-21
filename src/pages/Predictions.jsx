@@ -273,5 +273,16 @@ export default function Predictions() {
 }
 
 function Team({ team }) { return <div className="flex-1 flex flex-col items-center text-center gap-2"><img src={team?.url_logo} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" alt={team?.name ?? ''} /><span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-tight">{team?.name}</span></div>; }
-function ScoreInput({ disabled, value, onChange, onBlur }) { return <input type="number" min="0" disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur} className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none disabled:text-gray-500 disabled:cursor-not-allowed" placeholder="0" />; }
+function ScoreInput({ disabled, value, onChange, onBlur }) {
+  return (
+    <input
+      type="number"
+      min="0"
+      disabled={disabled}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={onBlur}
+      className="w-10 h-10 sm:w-16 sm:h-16 text-center bg-[#1A1C3A] rounded-2xl font-black text-xl sm:text-3xl text-[#0077FF] outline-none disabled:text-gray-500 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+      placeholder="0"
+    />);}
 function SaveStatus({ status, t }) { const labels = { saving: ['text-yellow-500 animate-pulse', 'predictions.status.saving'], saved: ['text-green-400', 'predictions.status.saved'], blocked: ['text-red-500', 'predictions.status.blocked'], error: ['text-red-500', 'predictions.status.error'] }; const item = labels[status]; return <div className="h-3 flex items-center justify-center">{item && <span className={`text-[8px] font-black tracking-widest uppercase ${item[0]}`}>{t(item[1])}</span>}</div>; }

@@ -23,5 +23,66 @@ function buildTeams({ stats, teams, matches }) { const teamById = Object.fromEnt
 function NhlFilters({ conference, division, setConference, setDivision, t }) { return <div className="max-w-7xl mx-auto grid grid-cols-2 gap-4 mb-6 bg-[#1A1C3A] p-4 rounded-[25px] border border-[#26283A]"><Select label={t('whatIf.conference')} value={conference} setValue={setConference} options={NHL_CONFERENCES} prefix="whatIf.conferences" t={t} /><Select label={t('whatIf.division')} value={division} setValue={setDivision} options={NHL_DIVISIONS} prefix="whatIf.divisions" t={t} /></div>; }
 function WorldCupFilter({ group, setGroup, t }) { return <div className="max-w-7xl mx-auto mb-6 bg-[#1A1C3A] p-4 rounded-[25px] border border-[#26283A]"><Select label={t('whatIf.group')} value={group} setValue={setGroup} options={WORLD_CUP_GROUP_IDS} prefix="whatIf.groups" t={t} /></div>; }
 function Select({ label, value, setValue, options, prefix, t }) { return <div><label className="block text-[8px] font-black uppercase text-gray-400 mb-2 pl-1">{label}</label><select value={value} onChange={(event) => setValue(event.target.value)} className="w-full bg-[#0A0E2A] border border-[#26283A] text-xs font-bold rounded-xl p-3 outline-none text-white"><option value="all">{t('whatIf.all')}</option>{options.map((option) => <option key={option} value={option}>{t(`${prefix}.${option}`, { defaultValue: option })}</option>)}</select></div>; }
-function StandingsTable({ teams, isFootball, isWorldCup, t }) { const headers = [['games', 'games'], ['wins', 'wins'], [isFootball ? 'draws' : 'otl', isFootball ? 'draws' : 'otl'], ['losses', 'losses'], ['points', 'points'], ...(!isFootball ? [['percentage', 'pointsPercentage']] : []), ['goalsFor', 'goalsFor'], ['goalsAgainst', 'goalsAgainst'], ['difference', 'goalDifference'], ['correctWins', 'correctWins'], ...(isFootball ? [['correctDraws', 'correctDraws']] : []), ['correctLosses', 'correctLosses'], ['correctGoals', 'correctGoals'], ['exact', 'exact'], ['withoutPrediction', 'withoutPrediction']]; return <div className="max-w-7xl mx-auto bg-[#1A1C3A] border border-[#26283A] rounded-[35px] shadow-2xl overflow-hidden"><div className="overflow-x-auto custom-scrollbar"><table className="w-full text-left border-collapse min-w-[1100px]"><thead><tr className="bg-[#0A0E2A] border-b border-[#26283A] text-gray-400 text-[9px] font-black uppercase italic"><th className="py-4 pl-6 text-center">{t('whatIf.table.position')}</th><th className="py-4 pl-4">{t('whatIf.table.team')}</th>{isWorldCup && <th className="py-4 text-center">{t('whatIf.table.group')}</th>}{headers.map(([label]) => <th key={label} className="py-4 text-center">{t(`whatIf.table.${label}`)}</th>)}</tr></thead><tbody className="divide-y divide-[#26283A] text-xs font-bold">{teams.map((team, index) => <tr key={team.id} className="hover:bg-[#0A0E2A]/40"><td className="py-4 pl-6 text-center text-gray-500">{index + 1}º</td><td className="py-4 pl-4 flex items-center gap-3"><img src={team.logo} className="w-6 h-6 object-contain" alt="" /><span className="uppercase truncate text-white">{team.name}</span></td>{isWorldCup && <td className="py-4 text-center">{t(`whatIf.groups.${team.group}`, { defaultValue: team.group })}</td>}{headers.map(([label, property]) => <td key={label} className={`py-4 text-center ${label === 'points' ? 'font-black text-[#0077FF]' : ''}`}>{property === 'goalDifference' && team[property] > 0 ? `+${team[property]}` : team[property]}</td>)}</tr>)}</tbody></table></div></div>; }
+function StandingsTable({ teams, isFootball, isWorldCup, t }) {
+  const headers = [
+    ['games', 'games'], ['wins', 'wins'], [isFootball ? 'draws' : 'otl', isFootball ? 'draws' : 'otl'],
+    ['losses', 'losses'], ['points', 'points'], ...(!isFootball ? [['percentage', 'pointsPercentage']] : []),
+    ['goalsFor', 'goalsFor'], ['goalsAgainst', 'goalsAgainst'], ['difference', 'goalDifference'],
+    ['correctWins', 'correctWins'], ...(isFootball ? [['correctDraws', 'correctDraws']] : []),
+    ['correctLosses', 'correctLosses'], ['correctGoals', 'correctGoals'], ['exact', 'exact'],
+    ['withoutPrediction', 'withoutPrediction']
+  ];
+
+  // Mapeamento das cores baseado no rótulo da coluna
+  const getColumnColor = (label) => {
+    switch (label) {
+      case 'correctWins': return 'text-green-500';
+      case 'correctDraws': return 'text-orange-400';
+      case 'correctLosses': return 'text-red-500';
+      case 'correctGoals': return 'text-yellow-500';
+      case 'exact': return 'text-[#0077FF]';
+      case 'withoutPrediction': return 'text-gray-500';
+      case 'points': return 'font-black text-[#0077FF]';
+      default: return '';
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto bg-[#1A1C3A] border border-[#26283A] rounded-[35px] shadow-2xl overflow-hidden">
+      <div className="overflow-x-auto custom-scrollbar">
+        <table className="w-full text-left border-collapse min-w-[1100px]">
+          <thead>
+            <tr className="bg-[#0A0E2A] border-b border-[#26283A] text-gray-400 text-[9px] font-black uppercase italic">
+              <th className="py-4 pl-6 text-center">{t('whatIf.table.position')}</th>
+              <th className="py-4 pl-4">{t('whatIf.table.team')}</th>
+              {isWorldCup && <th className="py-4 text-center">{t('whatIf.table.group')}</th>}
+              {headers.map(([label]) => (
+                <th key={label} className={`py-4 text-center ${getColumnColor(label)}`}>
+                  {t(`whatIf.table.${label}`)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#26283A] text-xs font-bold">
+            {teams.map((team, index) => (
+              <tr key={team.id} className="hover:bg-[#0A0E2A]/40">
+                <td className="py-4 pl-6 text-center text-gray-500">{index + 1}º</td>
+                <td className="py-4 pl-4 flex items-center gap-3">
+                  <img src={team.logo} className="w-6 h-6 object-contain" alt="" />
+                  <span className="uppercase truncate text-white">{team.name}</span>
+                </td>
+                {isWorldCup && <td className="py-4 text-center">{t(`whatIf.groups.${team.group}`, { defaultValue: team.group })}</td>}
+                {headers.map(([label, property]) => (
+                  <td key={label} className={`py-4 text-center ${getColumnColor(label)}`}>
+                    {property === 'goalDifference' && team[property] > 0 ? `+${team[property]}` : team[property]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 function State({ label }) { return <div className="min-h-screen bg-[#0A0E2A] text-[#0077FF] flex items-center justify-center font-black animate-pulse tracking-widest">{label}</div>; }
