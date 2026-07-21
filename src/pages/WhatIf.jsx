@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import BottomNav from '../components/layout/BottomNav';
 import { getCurrentUser } from '../services/authService';
 import { getUserLeagueDetails } from '../services/leagueService';
-import { getWhatIfScenario } from '../services/whatIfService';
-import { getNhlTeamMetadata, getWorldCupGroup, NHL_CONFERENCES, NHL_DIVISIONS, WORLD_CUP_GROUP_IDS } from '../config/whatIf';
+import { getWhatIfScenario } from '../services/whatifService';
+import { getNhlTeamMetadata, getWorldCupGroup, NHL_CONFERENCES, NHL_DIVISIONS, WORLD_CUP_GROUP_IDS } from '../config/whatif';
 
 const sortTeams = (teams) => [...teams].sort((a, b) => b.points - a.points || b.wins - a.wins || b.goalDifference - a.goalDifference);
 
