@@ -125,16 +125,23 @@ function ComparisonCard({ match, users, predictions, points, cardRef, onShare, t
         ↗
       </button>
 
-      {/* CABEÇALHO DA PARTIDA (Ancorado no meio) */}
-      <div className="flex justify-center items-center gap-3 sm:gap-6 mb-6 bg-[#0A0E2A]/50 py-4 px-4 sm:px-6 rounded-[20px] max-w-md mx-auto">
+      {/* CABEÇALHO DA PARTIDA */}
+      <div className="bg-[#0A0E2A]/50 py-4 px-3 sm:px-6 rounded-[20px] max-w-md mx-auto mb-6 flex items-center justify-between">
         
-        {/* Time Casa: flex-row-reverse coloca o escudo ao lado do placar e o nome pra esquerda */}
-        <div className="flex items-center flex-row-reverse gap-2 sm:gap-3">
-          <MatchTeam team={match.home_team} align="right" />
+        {/* Time Casa: Puxado pra direita (perto do placar) */}
+        <div className="flex-1 flex justify-end items-center gap-2 min-w-0 text-right">
+          <span className="text-xs sm:text-sm font-black italic uppercase text-white truncate">
+            {match.home_team?.name}
+          </span>
+          <img
+            src={match.home_team?.url_logo}
+            alt=""
+            className="w-6 h-6 sm:w-7 sm:h-7 object-contain flex-shrink-0"
+          />
         </div>
 
         {/* Placar Centralizado */}
-        <div className="flex items-center gap-2 justify-center select-none flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 justify-center px-3 select-none flex-shrink-0">
           <span className="text-xl sm:text-2xl font-black italic tracking-tighter text-white">
             {match.goals_home ?? '-'}
           </span>
@@ -144,9 +151,16 @@ function ComparisonCard({ match, users, predictions, points, cardRef, onShare, t
           </span>
         </div>
 
-        {/* Time Visitante: Escudo ao lado do placar e o nome pra direita */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <MatchTeam team={match.away_team} />
+        {/* Time Visitante: Puxado pra esquerda (perto do placar) */}
+        <div className="flex-1 flex justify-start items-center gap-2 min-w-0 text-left">
+          <img
+            src={match.away_team?.url_logo}
+            alt=""
+            className="w-6 h-6 sm:w-7 sm:h-7 object-contain flex-shrink-0"
+          />
+          <span className="text-xs sm:text-sm font-black italic uppercase text-white truncate">
+            {match.away_team?.name}
+          </span>
         </div>
 
       </div>
