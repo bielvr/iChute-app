@@ -125,32 +125,46 @@ function ComparisonCard({ match, users, predictions, points, cardRef, onShare, t
         ↗
       </button>
 
-      {/* CABEÇALHO DA PARTIDA (Centralizado e Nivelado) */}
-      <div className="flex justify-between items-center bg-[#0A0E2A]/50 py-4 px-6 rounded-[20px] max-w-md mx-auto mb-6 w-full">
-        
-        {/* Time da Casa: flex-1 + flex-row-reverse força o escudo para a direita (perto do placar) e o texto à esquerda */}
-        <div className="flex-1 flex justify-end min-w-0">
-          <div className="flex-row-reverse">
-            <MatchTeam team={match.home_team} align="right" />
+      {/* CABEÇALHO DA PARTIDA */}
+      <div className="bg-[#0A0E2A]/50 py-4 px-4 sm:px-6 rounded-[20px] max-w-md mx-auto mb-6">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+          
+          {/* Time Casa: Nome na ponta esquerda, Escudo encostado no centro */}
+          <div className="flex items-center justify-start sm:justify-end gap-2 overflow-hidden">
+            <span className="font-black italic uppercase text-xs sm:text-sm text-white truncate text-left sm:text-right">
+              {match.home_team?.name}
+            </span>
+            <img
+              src={match.home_team?.url_logo}
+              alt=""
+              className="w-6 h-6 sm:w-7 sm:h-7 object-contain flex-shrink-0"
+            />
           </div>
-        </div>
 
-        {/* Placar Centralizado */}
-        <div className="flex items-center gap-2.5 justify-center px-4 select-none flex-shrink-0">
-          <span className="text-2xl font-black italic tracking-tighter text-white">
-            {match.goals_home ?? '-'}
-          </span>
-          <span className="text-[#0077FF] text-xs font-black italic opacity-40">X</span>
-          <span className="text-2xl font-black italic tracking-tighter text-white">
-            {match.goals_away ?? '-'}
-          </span>
-        </div>
+          {/* Placar Central */}
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2 px-2 select-none">
+            <span className="text-lg sm:text-2xl font-black italic tracking-tighter text-white">
+              {match.goals_home ?? '-'}
+            </span>
+            <span className="text-[#0077FF] text-xs font-black italic opacity-40">X</span>
+            <span className="text-lg sm:text-2xl font-black italic tracking-tighter text-white">
+              {match.goals_away ?? '-'}
+            </span>
+          </div>
 
-        {/* Time Visitante: Escudo encostado no placar à esquerda e texto para a direita */}
-        <div className="flex-1 flex justify-start min-w-0">
-          <MatchTeam team={match.away_team} />
-        </div>
+          {/* Time Visitante: Escudo encostado no centro, Nome na ponta direita */}
+          <div className="flex items-center justify-end sm:justify-start gap-2 overflow-hidden">
+            <img
+              src={match.away_team?.url_logo}
+              alt=""
+              className="w-6 h-6 sm:w-7 sm:h-7 object-contain flex-shrink-0"
+            />
+            <span className="font-black italic uppercase text-xs sm:text-sm text-white truncate text-right sm:text-left">
+              {match.away_team?.name}
+            </span>
+          </div>
 
+        </div>
       </div>
 
       {/* LISTA DE PALPITES DOS USUÁRIOS */}
