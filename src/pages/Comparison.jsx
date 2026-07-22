@@ -111,111 +111,60 @@ export default function Comparison() {
 
 function Loading({ label }) { return <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center"><div className="text-[#0077FF] font-black italic animate-pulse tracking-widest">{label}</div></div>; }
 function ComparisonCard({ match, users, predictions, points, cardRef, onShare, t }) {
-  return (
-    <div
-      ref={cardRef}
-      className="bg-[#1A1C3A] border border-[#26283A] rounded-[30px] p-4 sm:p-6 shadow-2xl relative w-full overflow-hidden"
-    >
-      {/* Botão de Compartilhar / Ações no topo (se houver) */}
-      {onShare && (
-        <button
-          onClick={() => onShare(match.id)}
-          className="absolute top-4 right-4 text-gray-400 hover:text-[#0077FF] text-xs p-2 rounded-xl transition-colors z-10"
-          aria-label={t('common.share')}
-        >
-          📤
-        </button>
-      )}
+  const started = hasMatchStarted(match.date);
 
-      {/* CABEÇALHO DA PARTIDA (Nivelado e Centralizado) */}
-      <div className="bg-[#0A0E2A] border border-[#26283A] rounded-2xl p-4 flex items-center justify-between mb-4 w-full">
-        {/* Time da Casa: Nome à direita, Escudo encostado no centro */}
-        <div className="flex-1 flex items-center justify-end gap-2.5 sm:gap-3 text-right min-w-0">
-          <span className="font-black uppercase text-xs sm:text-sm truncate text-white tracking-tight">
-            {match.home_team?.name}
-          </span>
-          <img
-            src={match.home_team?.url_logo}
-            alt={match.home_team?.name ?? ''}
-            className="w-6 h-6 sm:w-7 sm:h-7 object-contain flex-shrink-0"
-          />
+  return (
+    <div ref={cardRef} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px] relative overflow-hidden">
+      <button
+        data-share-button
+        type="button"
+        onClick={() => onShare(match)}
+        title={t('comparison.share.button')}
+        className="absolute top-4 right-5 text-white/30 hover:text-[#0077FF] transition-colors z-20"
+      >
+        ↗
+      </button>
+
+      {/* CABEÇALHO DA PARTIDA (Centralizado e Nivelado) */}
+      <div className="flex justify-between items-center bg-[#0A0E2A]/50 py-4 px-6 rounded-[20px] max-w-md mx-auto mb-6 w-full">
+        
+        {/* Time da Casa: flex-1 + flex-row-reverse força o escudo para a direita (perto do placar) e o texto à esquerda */}
+        <div className="flex-1 flex justify-end min-w-0">
+          <div className="flex-row-reverse">
+            <MatchTeam team={match.home_team} align="right" />
+          </div>
         </div>
 
         {/* Placar Centralizado */}
-        <div className="px-3 sm:px-5 text-center flex-shrink-0">
-          <span className="font-black italic text-sm sm:text-base tracking-widest text-white">
-            {match.home_score !== null && match.away_score !== null ? (
-              <>
-                {match.home_score} <span className="text-[#0077FF] mx-0.5">x</span> {match.away_score}
-              </>
-            ) : (
-              <span className="text-gray-400">
-                - <span className="text-[#0077FF] mx-0.5">x</span> -
-              </span>
-            )}
+        <div className="flex items-center gap-2.5 justify-center px-4 select-none flex-shrink-0">
+          <span className="text-2xl font-black italic tracking-tighter text-white">
+            {match.goals_home ?? '-'}
+          </span>
+          <span className="text-[#0077FF] text-xs font-black italic opacity-40">X</span>
+          <span className="text-2xl font-black italic tracking-tighter text-white">
+            {match.goals_away ?? '-'}
           </span>
         </div>
 
-        {/* Time Visitante: Escudo encostado no centro, Nome à esquerda */}
-        <div className="flex-1 flex items-center justify-start gap-2.5 sm:gap-3 text-left min-w-0">
-          <img
-            src={match.away_team?.url_logo}
-            alt={match.away_team?.name ?? ''}
-            className="w-6 h-6 sm:w-7 sm:h-7 object-contain flex-shrink-0"
-          />
-          <span className="font-black uppercase text-xs sm:text-sm truncate text-white tracking-tight">
-            {match.away_team?.name}
-          </span>
+        {/* Time Visitante: Escudo encostado no placar à esquerda e texto para a direita */}
+        <div className="flex-1 flex justify-start min-w-0">
+          <MatchTeam team={match.away_team} />
         </div>
+
       </div>
 
       {/* LISTA DE PALPITES DOS USUÁRIOS */}
-      <div className="flex flex-col gap-2.5">
-        {users?.map((user) => {
-          const pred = predictions?.[user.id];
-          const pts = points?.[match.id]?.[user.id];
-
-          // Destaque verde para acertos
-          const isWinner = pts && pts > 0;
-
-          return (
-            <div
-              key={user.id}
-              className={`flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border text-xs sm:text-sm transition-all ${
-                isWinner
-                  ? 'bg-[#00FF66]/10 border-[#00FF66] shadow-[0_0_15px_rgba(0,255,102,0.15)]'
-                  : 'bg-[#13152E] border-[#26283A]'
-              }`}
-            >
-              {/* Nome do Jogador */}
-              <span className="font-black uppercase tracking-tight text-white/90 italic truncate max-w-[30%]">
-                {user.name || user.username}
-              </span>
-
-              {/* Palpite do Jogador */}
-              <div className="font-black italic text-center tracking-wider text-white">
-                {pred && (pred.home !== '' || pred.away !== '') ? (
-                  <>
-                    {pred.home} <span className="text-[#0077FF] mx-0.5">x</span> {pred.away}
-                  </>
-                ) : (
-                  <span className="text-gray-600 font-normal">-- x --</span>
-                )}
-              </div>
-
-              {/* Pontuação Obtida */}
-              <div
-                className={`px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black uppercase italic tracking-wider ${
-                  isWinner
-                    ? 'bg-[#00FF66] text-black shadow-md'
-                    : 'bg-[#0A0E2A] text-gray-600 border border-[#26283A]'
-                }`}
-              >
-                {pts ?? 0} PTS
-              </div>
-            </div>
-          );
-        })}
+      <div className="grid gap-2">
+        {users.map((user) => (
+          <PredictionRow
+            key={user.id}
+            user={user}
+            prediction={predictions?.[user.id]}
+            started={started}
+            points={points}
+            t={t}
+          />
+        ))}
       </div>
     </div>
   );
