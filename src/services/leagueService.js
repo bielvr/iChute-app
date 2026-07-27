@@ -39,35 +39,40 @@ export function isLeagueOwner(league, user) { return Boolean(league && user && l
 export async function getLigasPageData(userId, sportId) {
   const [{ data: sportData }, { data: participacoes, error: partError }, { data: reais, error: reaisError }] =
     await Promise.all([
+      // 1. Nome do esporte
       supabase.from('sports').select('name').eq('id', sportId).single(),
+
+      // 2. Ligas que o usuário participa (buscando a FK explicitamente pelo official_league_id)
       supabase
         .from('user_league_members')
         .select(`
           user_league_id,
-          user_leagues (
+          user_leagues!inner (
             id, 
             name, 
             official_league_id,
-            leagues (
+            leagues:official_league_id (
               sport_id
             )
           )
         `)
         .eq('user_id', userId),
+
+      // 3. Ligas reais oficiais disponíveis para aquele esporte
       supabase.from('leagues').select('id, name').eq('sport_id', sportId).eq('show', true),
     ]);
 
   if (partError) throw partError;
   if (reaisError) throw reaisError;
 
-  // Mapeia e garante o filtro independentemente da estrutura do join do Supabase
+  // Filtragem segura extraindo a liga oficial vinculada
   const ligasAtivas = (participacoes || [])
     .map((p) => p.user_leagues)
     .filter((l) => {
       if (!l) return false;
-      // Garante a busca do sport_id mesmo se leagues vier em formato de array ou objeto
       const official = Array.isArray(l.leagues) ? l.leagues[0] : l.leagues;
-      return String(official?.sport_id) === String(sportId);
+      // Compara convertendo ambos para Number/String para evitar divergência de tipo
+      return Number(official?.sport_id) === Number(sportId);
     });
 
   return {
