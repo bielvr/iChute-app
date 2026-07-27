@@ -118,4 +118,20 @@
       "winnerOnlyDesc": "You predict the correct winner or draw, but miss the exact score. Ex: Prediction 2x1 | Result 1x0.",
       "close": "Got it"
     }
-  }}
+  },
+  "nav": {
+    "results": "Results",
+    "predictions": "Predictions",
+    "ranking": "Ranking",
+    "whatif": "What if?"
+  },
+  "calendar": {
+    "today": "Today",
+    "weekdays": {
+      "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat"
+    }
+  },
+  "header": {
+    "statusSynced": "Synced with Supabase"
+  }
+}

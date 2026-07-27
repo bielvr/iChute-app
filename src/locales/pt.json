@@ -119,4 +119,20 @@
       "winnerOnlyDesc": "Você acerta apenas o ganhador ou empate, mas erra os placares. Ex: Palpite 2x1 | Resultado 1x0.",
       "close": "Entendido"
     }
-  }}
+  },
+  "nav": {
+    "results": "Resultados",
+    "predictions": "Palpites",
+    "ranking": "Ranking",
+    "whatif": "E se?"
+  },
+  "calendar": {
+    "today": "Hoje",
+    "weekdays": {
+      "sun": "Dom", "mon": "Seg", "tue": "Ter", "wed": "Qua", "thu": "Qui", "fri": "Sex", "sat": "Sáb"
+    }
+  },
+  "header": {
+    "statusSynced": "Sincronizado com Supabase"
+  }
+}
