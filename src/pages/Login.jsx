@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Trans, useTranslation } from 'react-[#0077FF]'; // Ou 'react-i18next'
-import { useTranslation as useI18n } from 'react-i18next';
+import { Trans, useTranslation as useI18n } from 'react-i18next';
 import Logo from '../components/Logo';
 import { resetPassword, signInWithPassword, signUp } from '../services/authService';
 
