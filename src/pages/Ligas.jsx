@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
-import { getCurrentAuthUser } from '../services/authService';
+// IMPORTAÇÃO CORRIGIDA: usa a função que busca o id (int8) da tabela public.users
+import { getCurrentUser } from '../services/authService';
 import {
   createPrivateLeague,
   getLigasPageData,
@@ -28,11 +29,12 @@ export default function Ligas() {
   async function fetchData() {
     setLoading(true);
     try {
-      const user = await getCurrentAuthUser();
+      // Pega o usuário correto da tabela public.users
+      const user = await getCurrentUser();
       if (!user) return;
 
       const { sportName, ligasAtivas, ligasReaisDisponiveis } = await getLigasPageData(
-        user.id,
+        user.id, // user.id agora é um INTEGER (int8)
         sportId
       );
 
@@ -54,7 +56,7 @@ export default function Ligas() {
     if (!inviteCodeInput) return alert(t('ligas.alerts.fillCode'));
     setProcessing(true);
     try {
-      const user = await getCurrentAuthUser();
+      const user = await getCurrentUser();
       await joinLeagueByCode(user.id, inviteCodeInput);
       setInviteCodeInput('');
       fetchData();
@@ -74,7 +76,7 @@ export default function Ligas() {
       return alert(t('ligas.alerts.fillAll'));
     setProcessing(true);
     try {
-      const user = await getCurrentAuthUser();
+      const user = await getCurrentUser();
       await createPrivateLeague(user.id, {
         name: newLeagueName,
         officialLeagueId: selectedOfficialLeague,
@@ -192,7 +194,7 @@ export default function Ligas() {
               </select>
             </div>
 
-            {/* SELEÇÃO E BOTÃO DE AJUDA DAS REGRAS */}
+            {/* REGRAS DE PONTUAÇÃO */}
             <div className="flex justify-between items-center pt-4">
               <span className="text-[10px] font-black uppercase opacity-40 tracking-wider">
                 {t('ligas.scoringRules')}
@@ -206,7 +208,6 @@ export default function Ligas() {
               </button>
             </div>
 
-            {/* CARD INTERNO: REGRAS DE PONTUAÇÃO */}
             <div className="grid grid-cols-3 gap-2 pb-4 border-b border-[#26283A]">
               {[
                 { label: t('ligas.exactScore'), key: 'exact' },
@@ -238,7 +239,7 @@ export default function Ligas() {
         </section>
       </div>
 
-      {/* MODAL DE AJUDA FLUTUANTE */}
+      {/* MODAL DE AJUDA */}
       {showHelpModal && (
         <div className="fixed inset-0 bg-[#0A0E2A]/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
           <div className="bg-[#1A1C3A] border border-[#26283A] p-6 rounded-[35px] max-w-sm w-full shadow-2xl relative animate-in fade-in zoom-in duration-200">

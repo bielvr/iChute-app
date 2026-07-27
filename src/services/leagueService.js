@@ -168,10 +168,10 @@ export function isLeagueOwner(league, user) {
 export async function getLigasPageData(userId, sportId) {
   const [{ data: sportData }, { data: participacoes, error: partError }, { data: reais, error: reaisError }] =
     await Promise.all([
-      // 1. Nome do esporte
+      // 1. Busca nome do esporte
       supabase.from('sports').select('name').eq('id', sportId).single(),
 
-      // 2. Busca participações usando a chave correta: user_league_id
+      // 2. CORRIGIDO: usa user_league_id (e não league_id)
       supabase
         .from('user_league_members')
         .select(`
@@ -187,13 +187,14 @@ export async function getLigasPageData(userId, sportId) {
         `)
         .eq('user_id', userId),
 
-      // 3. Ligas reais oficiais do esporte
+      // 3. Ligas oficiais disponíveis para o esporte
       supabase.from('leagues').select('id, name').eq('sport_id', sportId).eq('show', true),
     ]);
 
   if (partError) throw partError;
   if (reaisError) throw reaisError;
 
+  // Mapeia extraindo o objeto user_leagues e filtra pelo esporte correto
   const ligasAtivas = (participacoes || [])
     .map((p) => p.user_leagues)
     .filter((ul) => {
@@ -208,7 +209,6 @@ export async function getLigasPageData(userId, sportId) {
     ligasReaisDisponiveis: reais || [],
   };
 }
-
 export async function joinLeagueByCode(userId, inviteCode) {
   const { data: league, error } = await supabase
     .from('user_leagues')
