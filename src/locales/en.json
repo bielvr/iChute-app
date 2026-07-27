@@ -13,4 +13,119 @@
     },
     "ranking": { "title": "Prediction leaders", "loading": "Syncing rankings...", "you": "You", "empty": "No predictions computed", "globalDescription": "This ranking includes all competitors in this official competition. Criteria: exact scores, outcome predictions and individual goals.", "tabs": { "league": "League ranking", "global": "App ranking" }, "metrics": { "points": "Points", "exact": "Exact", "outcome": "Outcome", "goals": "Goals", "predictions": "Predictions" }, "messages": { "loadError": "Could not load the ranking." } }, "whatIf": { "title": "What if?", "loading": "Projecting alternate scenario...", "all": "All", "conference": "Conference", "division": "Division", "group": "World Cup group", "conferences": { "east": "East", "west": "West" }, "divisions": { "atlantic": "Atlantic", "metropolitan": "Metropolitan", "central": "Central", "pacific": "Pacific" }, "groups": { "A": "Group A", "B": "Group B", "C": "Group C", "D": "Group D", "E": "Group E", "F": "Group F", "G": "Group G", "H": "Group H", "I": "Group I", "J": "Group J", "K": "Group K", "L": "Group L" }, "table": { "position": "Pos", "team": "Team", "group": "Group", "games": "Games", "wins": "W", "draws": "D", "otl": "OTL", "losses": "L", "points": "PTS", "percentage": "P%", "goalsFor": "GF", "goalsAgainst": "GA", "difference": "Diff", "correctWins": "Correct W", "correctDraws": "Correct D", "correctLosses": "Correct L", "correctGoals": "Correct goals", "exact": "Exact", "withoutPrediction": "No prediction" }, "messages": { "loadError": "Could not load the scenario." } },
     "settings": { "title": "League settings", "loading": "Loading panel...", "saving": "Saving...", "scoring": { "title": "Adjust scoring", "description": "New rules will apply to upcoming predictions. Existing history is unchanged.", "save": "Apply league rules" }, "points": { "exact": "Exact score", "winnerOne": "Winner +1 goal", "winnerOnly": "Winner only" }, "members": { "manage": "Manage members", "title": "League members", "unknown": "Unnamed", "admin": "Admin", "remove": "Remove" }, "danger": { "title": "Danger zone", "adminTitle": "Danger zone (admin)", "leaveDescription": "Leaving removes your access to this group's predictions.", "leave": "Leave league", "deleteDescription": "To permanently delete \"{{name}}\", enter its name below.", "delete": "Delete league permanently" }, "messages": { "loadError": "Could not load settings.", "notMember": "You are not a member of this league.", "saved": "Scoring updated successfully.", "saveError": "Could not save scoring.", "removeConfirm": "Remove {{name}} from the league?", "removeError": "Could not remove member.", "leaveConfirm": "Are you sure you want to leave this league?", "leaveError": "Could not leave league.", "nameMismatch": "The typed name does not match the league name.", "deleteConfirm": "Permanently delete \"{{name}}\"?", "deleteError": "Could not delete league." } },
-    "home": { "settings": "Settings", "logout": "Log out", "chooseSport": "Choose a sport", "loading": "Loading sports...", "loadError": "Could not load sports.", "empty": "No active sports right now." }, "sports": { "football": "Football", "iceHockey": "Ice hockey", "motorsport": "Motorsport", "cycling": "Cycling", "basketball": "Basketball", "baseball": "Baseball", "americanFootball": "American football", "tennis": "Tennis", "volleyball": "Volleyball" } }
+    "home": { "settings": "Settings", "logout": "Log out", "chooseSport": "Choose a sport", "loading": "Loading sports...", "loadError": "Could not load sports.", "empty": "No active sports right now." }, "sports": { "football": "Football", "iceHockey": "Ice hockey", "motorsport": "Motorsport", "cycling": "Cycling", "basketball": "Basketball", "baseball": "Baseball", "americanFootball": "American football", "tennis": "Tennis", "volleyball": "Volleyball" },
+    "auth": {
+    "tagline": "The thrill of predicting the score, <1>just for fun.</1>",
+    "description": "iChute is the perfect place to create sports pools and compete with your friends. Feel the rush of every round without involving money.",
+    "benefits": {
+      "competitionTitle": "⚡ Healthy Competition",
+      "competitionDesc": "Create private leagues and challenge your friends in real time.",
+      "rankingTitle": "📊 Complete Rankings",
+      "rankingDesc": "Track stats, exact score predictions, and overall round scores."
+    },
+    "gallery": {
+      "title": "📸 Explore the Interface",
+      "rankings": "League Rankings",
+      "calendar": "Match Calendar",
+      "friends": "Friends' Predictions",
+      "sports": "Multiple Sports"
+    },
+    "login": "Log In",
+    "signUp": "Sign Up",
+    "fullName": "Full Name",
+    "email": "Email",
+    "password": "Password",
+    "processing": "Processing...",
+    "createAccount": "Create Account",
+    "forgotPassword": "Forgot password",
+    "messages": {
+      "signUpSuccess": "Sign up successful! Please check your email.",
+      "resetSuccess": "Password recovery link sent to your email!",
+      "emailRequired": "Error: Enter your email first.",
+      "errorPrefix": "Error: "
+    }
+  },
+"resetPassword": {
+    "title": "New Password",
+    "checking": "Verifying credentials...",
+    "newPasswordPlaceholder": "Enter new password",
+    "updateButton": "Update Password",
+    "processing": "Processing...",
+    "backToLogin": "← Back to Login",
+    "messages": {
+      "invalidFlow": "Invalid or expired link. Please request a new password reset.",
+      "success": "Password updated successfully!"
+    }
+  },
+"userSettings": {
+    "title": "Global Settings",
+    "profileTitle": "Player Profile",
+    "nameLabel": "Display Name",
+    "emailLabel": "Registered Email",
+    "languageLabel": "App / Email Language",
+    "saveProfile": "Save Profile",
+    "pushTitle": "Push Notifications",
+    "pushDesc": "Device alerts.",
+    "emailTitle": "Email Notifications",
+    "emailDesc": "Matchday alerts directly to your inbox.",
+    "status": "Status",
+    "leadTime": "Lead Time",
+    "active": "Active",
+    "enable": "Enable",
+    "footer": {
+      "tagline": "Optimized platform for data tracking and competitive private league predictions.",
+      "developedBy": "Developed by",
+      "copyright": "© 2026 iChute • Porto Alegre / Edmonton"
+    },
+    "messages": {
+      "profileUpdated": "Profile and preferences saved successfully!",
+      "pushSaved": "Push preferences saved!",
+      "emailSaved": "Email preferences updated!",
+      "pushNotSupported": "Your device does not support Push notifications.",
+      "pushDenied": "Notification permission denied.",
+      "errorPrefix": "Error: "
+    }
+  },
+"ligas": {
+    "title": "Leagues",
+    "activeLeagues": "Your Active Leagues",
+    "loading": "Loading leagues...",
+    "empty": "You do not participate in any league for this sport.",
+    "code": "CODE:",
+    "enterCode": "CODE",
+    "joinButton": "Join League",
+    "createNew": "Create New League",
+    "leagueNamePlaceholder": "LEAGUE NAME",
+    "selectOfficialLeague": "LINK TO OFFICIAL LEAGUE...",
+    "scoringRules": "Scoring Rules",
+    "exactScore": "Exact Score",
+    "winnerPlusOne": "Win +1 Goal",
+    "winnerOnly": "Winner Only",
+    "createButton": "CREATE LEAGUE & CODE",
+    "creating": "CREATING...",
+    "alerts": {
+      "fillCode": "Enter the code!",
+      "fillAll": "Please fill out all fields!",
+      "leagueNotFound": "League not found."
+    },
+    "helpModal": {
+      "title": "How does scoring work?",
+      "exactTitle": "1. Exact Score",
+      "exactDesc": "You predict the exact goals for both teams. Ex: Prediction 2x1 | Result 2x1.",
+      "winnerOneTitle": "2. Winner + 1 Goal",
+      "winnerOneDesc": "You predict the correct winner and exact goals for one team. Ex: Prediction 2x1 | Result 2x0.",
+      "winnerOnlyTitle": "3. Winner Only / Trend",
+      "winnerOnlyDesc": "You predict the correct winner or draw, but miss the exact score. Ex: Prediction 2x1 | Result 1x0.",
+      "close": "Got it"
+    }
+  },
+  "nav": {
+    "results": "Results",
+    "predictions": "Predictions",
+    "ranking": "Ranking",
+    "whatif": "What if?"
+  },
+  "header": {
+    "statusSynced": "Synced with Supabase"
+  }
+}
