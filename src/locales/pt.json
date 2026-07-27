@@ -14,4 +14,109 @@
     },
 "ranking": { "title": "Líderes de palpites", "loading": "Sincronizando quadros...", "you": "Você", "empty": "Sem palpites computados", "globalDescription": "Este ranking considera todos os competidores desta modalidade oficial. Critério: cravadas, acertos de vitória/empate e gols individuais.", "tabs": { "league": "Ranking da liga", "global": "Geral do aplicativo" }, "metrics": { "points": "Pontos", "exact": "Cravadas", "outcome": "Resultado", "goals": "Gols", "predictions": "Palpites" }, "messages": { "loadError": "Não foi possível carregar o ranking." } }, "whatIf": { "title": "Cenário \"E se?\"", "loading": "Projetando cenário alternativo...", "all": "Todos", "conference": "Conferência", "division": "Divisão", "group": "Grupo da Copa", "conferences": { "east": "Leste", "west": "Oeste" }, "divisions": { "atlantic": "Atlântico", "metropolitan": "Metropolitana", "central": "Central", "pacific": "Pacífico" }, "groups": { "A": "Grupo A", "B": "Grupo B", "C": "Grupo C", "D": "Grupo D", "E": "Grupo E", "F": "Grupo F", "G": "Grupo G", "H": "Grupo H", "I": "Grupo I", "J": "Grupo J", "K": "Grupo K", "L": "Grupo L" }, "table": { "position": "Pos", "team": "Time", "group": "Grupo", "games": "Jogos", "wins": "V", "draws": "E", "otl": "OTL", "losses": "D", "points": "PTS", "percentage": "P%", "goalsFor": "GF", "goalsAgainst": "GA", "difference": "Diff", "correctWins": "Acerto V", "correctDraws": "Acerto E", "correctLosses": "Acerto D", "correctGoals": "Acerto gols", "exact": "Cravada", "withoutPrediction": "S/ palpite" }, "messages": { "loadError": "Não foi possível carregar o cenário." } },
 "settings": { "title": "Configurações da liga", "loading": "Carregando painel...", "saving": "Salvando...", "scoring": { "title": "Ajustar pontuação", "description": "As novas regras serão usadas nos próximos palpites. O histórico já calculado não é alterado.", "save": "Aplicar regras na liga" }, "points": { "exact": "Placar exato", "winnerOne": "Venc. +1 gol", "winnerOnly": "Só vencedor" }, "members": { "manage": "Gerenciar participantes", "title": "Participantes da liga", "unknown": "Sem nome", "admin": "Admin", "remove": "Remover" }, "danger": { "title": "Zona de perigo", "adminTitle": "Zona de perigo (admin)", "leaveDescription": "Ao sair, você perde o acesso aos palpites deste grupo.", "leave": "Sair da liga", "deleteDescription": "Para excluir a liga \"{{name}}\" permanentemente, digite o nome dela abaixo.", "delete": "Deletar liga definitivamente" }, "messages": { "loadError": "Não foi possível carregar as configurações.", "notMember": "Você não faz parte desta liga.", "saved": "Pontuação atualizada com sucesso.", "saveError": "Não foi possível salvar a pontuação.", "removeConfirm": "Remover {{name}} da liga?", "removeError": "Não foi possível remover o membro.", "leaveConfirm": "Tem certeza de que deseja sair desta liga?", "leaveError": "Não foi possível sair da liga.", "nameMismatch": "O nome digitado não corresponde ao nome da liga.", "deleteConfirm": "Excluir permanentemente a liga \"{{name}}\"?", "deleteError": "Não foi possível excluir a liga." } },
-"home": { "settings": "Configurações", "logout": "Sair", "chooseSport": "Escolha uma modalidade", "loading": "Carregando esportes...", "loadError": "Não foi possível carregar as modalidades.", "empty": "Nenhuma modalidade ativa no momento." }, "sports": { "football": "Futebol", "iceHockey": "Hóquei", "motorsport": "Automobilismo", "cycling": "Ciclismo", "basketball": "Basquete", "baseball": "Beisebol", "americanFootball": "Futebol americano", "tennis": "Tênis", "volleyball": "Vôlei" } }
+"home": { "settings": "Configurações", "logout": "Sair", "chooseSport": "Escolha uma modalidade", "loading": "Carregando esportes...", "loadError": "Não foi possível carregar as modalidades.", "empty": "Nenhuma modalidade ativa no momento." }, "sports": { "football": "Futebol", "iceHockey": "Hóquei", "motorsport": "Automobilismo", "cycling": "Ciclismo", "basketball": "Basquete", "baseball": "Beisebol", "americanFootball": "Futebol americano", "tennis": "Tênis", "volleyball": "Vôlei" },
+"auth": {
+    "tagline": "A emoção de acertar o placar, <1>apenas pela diversão.</1>",
+    "description": "O iChute é o espaço ideal para criar bolões esportivos e competir com seus amigos. Sinta a adrenalina de cada rodada sem envolver apostas financeiras.",
+    "benefits": {
+      "competitionTitle": "⚡ Competição Saudável",
+      "competitionDesc": "Crie ligas privadas e desafie seus amigos em tempo real.",
+      "rankingTitle": "📊 Rankings Completos",
+      "rankingDesc": "Acompanhe estatísticas, cravadas e pontuações gerais da rodada."
+    },
+    "gallery": {
+      "title": "📸 Conheça a Interface",
+      "rankings": "Rankings de Liga",
+      "calendar": "Calendário de Jogos",
+      "friends": "Palpites dos Amigos",
+      "sports": "Múltiplos Esportes"
+    },
+    "login": "Entrar",
+    "signUp": "Cadastrar",
+    "fullName": "Nome Completo",
+    "email": "E-mail",
+    "password": "Senha",
+    "processing": "Processando...",
+    "createAccount": "Criar Conta",
+    "forgotPassword": "Esqueci minha senha",
+    "messages": {
+      "signUpSuccess": "Cadastro realizado! Verifique seu e-mail.",
+      "resetSuccess": "Link de recuperação enviado para o e-mail!",
+      "emailRequired": "Erro: Digite seu e-mail primeiro.",
+      "errorPrefix": "Erro: "
+    }
+  },
+"resetPassword": {
+    "title": "Nova Senha",
+    "checking": "Verificando credenciais...",
+    "newPasswordPlaceholder": "Digite a nova senha",
+    "updateButton": "Atualizar Senha",
+    "processing": "Processando...",
+    "backToLogin": "← Voltar para o Login",
+    "messages": {
+      "invalidFlow": "Link inválido ou expirado. Solicite uma nova recuperação.",
+      "success": "Senha atualizada com sucesso!"
+    }
+  },
+"userSettings": {
+    "title": "Configurações Globais",
+    "profileTitle": "Perfil do Jogador",
+    "nameLabel": "Nome de Exibição",
+    "emailLabel": "E-mail Cadastrado",
+    "languageLabel": "Idioma do App / E-mails",
+    "saveProfile": "Salvar Perfil",
+    "pushTitle": "Notificações Push",
+    "pushDesc": "Alertas no dispositivo.",
+    "emailTitle": "Notificações por E-mail",
+    "emailDesc": "Alertas de rodada diretamente na caixa de entrada.",
+    "status": "Status",
+    "leadTime": "Antecedência",
+    "active": "Ativo",
+    "enable": "Ativar",
+    "footer": {
+      "tagline": "Plataforma otimizada para monitoramento de dados e palpites de ligas privadas competitivas.",
+      "developedBy": "Desenvolvido por",
+      "copyright": "© 2026 iChute • Porto Alegre / Edmonton"
+    },
+    "messages": {
+      "profileUpdated": "Perfil e preferências salvos com sucesso!",
+      "pushSaved": "Preferências de Push salvas!",
+      "emailSaved": "Preferências de e-mail atualizadas!",
+      "pushNotSupported": "Seu dispositivo não suporta notificações Push.",
+      "pushDenied": "Permissão de notificação negada.",
+      "errorPrefix": "Erro: "
+    }
+  },
+"ligas": {
+    "title": "Ligas",
+    "activeLeagues": "Suas Ligas Ativas",
+    "loading": "Carregando ligas...",
+    "empty": "Você não participa de nenhuma liga deste esporte.",
+    "code": "CÓDIGO:",
+    "enterCode": "CÓDIGO",
+    "joinButton": "Entrar em Liga",
+    "createNew": "Criar Nova Liga",
+    "leagueNamePlaceholder": "NOME DA LIGA",
+    "selectOfficialLeague": "VINCULAR À LIGA REAL...",
+    "scoringRules": "Regras de Pontuação",
+    "exactScore": "Placar Exato",
+    "winnerPlusOne": "Venc +1 Gol",
+    "winnerOnly": "Só Vencedor",
+    "createButton": "GERAR LIGA E CÓDIGO",
+    "creating": "CRIANDO...",
+    "alerts": {
+      "fillCode": "Digite o código!",
+      "fillAll": "Preencha todos os campos!",
+      "leagueNotFound": "Liga não encontrada."
+    },
+    "helpModal": {
+      "title": "Como funciona a pontuação?",
+      "exactTitle": "1. Placar Exato",
+      "exactDesc": "Você crava perfeitamente os gols dos dois times. Ex: Palpite 2x1 | Resultado 2x1.",
+      "winnerOneTitle": "2. Vencedor + 1 Gol",
+      "winnerOneDesc": "Você acerta quem venceu e o número exato de gols de apenas um dos lados. Ex: Palpite 2x1 | Resultado 2x0.",
+      "winnerOnlyTitle": "3. Só Vencedor / Tendência",
+      "winnerOnlyDesc": "Você acerta apenas o ganhador ou empate, mas erra os placares. Ex: Palpite 2x1 | Resultado 1x0.",
+      "close": "Entendido"
+    }
+  }}

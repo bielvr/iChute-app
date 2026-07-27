@@ -36,3 +36,90 @@ export async function deleteLeague(userLeagueId) { const { error } = await supab
 export async function getLeagueMembers(userLeagueId) { const { data, error } = await supabase.from('user_league_members').select('role, joined_at, users(id, name, email)').eq('user_league_id', userLeagueId); if (error) throw error; return data.map((member) => ({ ...member.users, role: member.role, joinedAt: member.joined_at })); }
 export async function getLeagueOwner(userLeagueId) { const league = await getUserLeague(userLeagueId); const { data, error } = await supabase.from('users').select('*').eq('id', league.owner_id).single(); if (error) throw error; return data; }
 export function isLeagueOwner(league, user) { return Boolean(league && user && league.owner_id === user.id); }
+export async function getLigasPageData(userId, sportId) {
+  const [{ data: sportData }, { data: participacoes, error: partError }, { data: reais, error: reaisError }] =
+    await Promise.all([
+      supabase.from('sports').select('name').eq('id', sportId).single(),
+      supabase
+        .from('user_league_members')
+        .select(`
+          user_league_id,
+          user_leagues (
+            id, name, official_league_id,
+            leagues!official_league_id ( sport_id )
+          )
+        `)
+        .eq('user_id', userId),
+      supabase.from('leagues').select('id, name').eq('sport_id', sportId).eq('show', true),
+    ]);
+
+  if (partError) throw partError;
+  if (reaisError) throw reaisError;
+
+  const ligasAtivas = (participacoes || [])
+    .map((p) => p.user_leagues)
+    .filter((l) => l && String(l.leagues?.sport_id) === String(sportId));
+
+  return {
+    sportName: sportData?.name || '',
+    ligasAtivas,
+    ligasReaisDisponiveis: reais || [],
+  };
+}
+
+export async function joinLeagueByCode(userId, inviteCode) {
+  const { data: league, error } = await supabase
+    .from('user_leagues')
+    .select('id, name')
+    .eq('id', inviteCode)
+    .single();
+
+  if (error || !league) throw new Error('leagueNotFound');
+
+  const { error: insertError } = await supabase
+    .from('user_league_members')
+    .insert({ user_league_id: league.id, user_id: userId, role: 'member' });
+
+  if (insertError) throw insertError;
+
+  return league;
+}
+
+export async function createPrivateLeague(userId, { name, officialLeagueId, points }) {
+  const { data: config, error: configError } = await supabase
+    .from('leagues_config')
+    .insert({
+      exact_score_points: Number(points.exact),
+      winner_and_one_goal_points: Number(points.winnerOne),
+      winner_only_points: Number(points.winnerOnly),
+    })
+    .select()
+    .single();
+
+  if (configError) throw configError;
+
+  const { data: league, error: leagueError } = await supabase
+    .from('user_leagues')
+    .insert({
+      name,
+      owner_id: userId,
+      config_id: config.id,
+      official_league_id: officialLeagueId,
+    })
+    .select()
+    .single();
+
+  if (leagueError) throw leagueError;
+
+  const { error: memberError } = await supabase
+    .from('user_league_members')
+    .insert({
+      user_league_id: league.id,
+      user_id: userId,
+      role: 'admin',
+    });
+
+  if (memberError) throw memberError;
+
+  return league;
+}
