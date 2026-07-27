@@ -45,8 +45,12 @@ export async function getLigasPageData(userId, sportId) {
         .select(`
           user_league_id,
           user_leagues (
-            id, name, official_league_id,
-            leagues!official_league_id ( sport_id )
+            id, 
+            name, 
+            official_league_id,
+            leagues (
+              sport_id
+            )
           )
         `)
         .eq('user_id', userId),
@@ -56,9 +60,15 @@ export async function getLigasPageData(userId, sportId) {
   if (partError) throw partError;
   if (reaisError) throw reaisError;
 
+  // Mapeia e garante o filtro independentemente da estrutura do join do Supabase
   const ligasAtivas = (participacoes || [])
     .map((p) => p.user_leagues)
-    .filter((l) => l && String(l.leagues?.sport_id) === String(sportId));
+    .filter((l) => {
+      if (!l) return false;
+      // Garante a busca do sport_id mesmo se leagues vier em formato de array ou objeto
+      const official = Array.isArray(l.leagues) ? l.leagues[0] : l.leagues;
+      return String(official?.sport_id) === String(sportId);
+    });
 
   return {
     sportName: sportData?.name || '',
