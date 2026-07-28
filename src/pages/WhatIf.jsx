@@ -342,12 +342,20 @@ function MatchesDrawer({ isOpen, onClose, team, metricLabel, matchesList, t }) {
 }
 
 export function filterMatchesByMetric({ predictions, teamId, metricType }) {
+  if (!predictions || !Array.isArray(predictions)) return [];
+
   return predictions.filter(p => {
     const m = p.match;
     if (!m) return false;
 
-    const isHome = m.home_team_id === teamId;
-    
+    // Apenas partidas concluídas
+    if (m.goals_home === null || m.goals_away === null) return false;
+
+    const isHome = Number(m.home_team_id) === Number(teamId);
+    const isAway = Number(m.away_team_id) === Number(teamId);
+
+    if (!isHome && !isAway) return false;
+
     const teamReal = isHome ? m.goals_home : m.goals_away;
     const oppReal = isHome ? m.goals_away : m.goals_home;
 
