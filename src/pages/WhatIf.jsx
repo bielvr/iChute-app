@@ -314,26 +314,29 @@ function MatchesDrawer({ isOpen, onClose, team, metricLabel, matchesList, t }) {
                   Rodada {item.match?.round ?? '-'}
                 </div>
                 
-                <div className="flex items-center justify-between text-sm font-black text-white">
-                  {/* Mandante: afastado com gap-4 */}
-                  <div className="flex items-center gap-4 w-2/5 justify-end">
-                    <span className="truncate">{item.match?.home_team?.name}</span>
+                {/* Grid de 3 colunas: [1fr (Mandante) | auto (Placar) | 1fr (Visitante)] */}
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm font-black text-white">
+                  
+                  {/* Mandante: Alinhado à direita */}
+                  <div className="flex items-center gap-2 justify-end min-w-0">
+                    <span className="truncate text-right">{item.match?.home_team?.name}</span>
                     <img src={item.match?.home_team?.url_logo} className="w-5 h-5 object-contain flex-shrink-0" alt="" />
                   </div>
                   
-                  {/* Caixa de Placar Central */}
-                  <div className="px-3 py-1.5 bg-[#1A1C3A] rounded-xl border border-[#26283A] text-center flex-shrink-0 mx-2">
+                  {/* Caixa de Placar Central (Garante posição fixa no centro absoluto) */}
+                  <div className="px-3 py-1.5 bg-[#1A1C3A] rounded-xl border border-[#26283A] text-center flex-shrink-0 mx-1">
                     <div className="text-base tracking-widest">{item.match?.goals_home} x {item.match?.goals_away}</div>
                     <div className="text-[9px] text-blue-400 font-normal mt-0.5 whitespace-nowrap">
                       Palpite: {item.prediction_home} x {item.prediction_away}
                     </div>
                   </div>
 
-                  {/* Visitante: afastado com gap-4 */}
-                  <div className="flex items-center gap-4 w-2/5">
+                  {/* Visitante: Alinhado à esquerda */}
+                  <div className="flex items-center gap-2 justify-start min-w-0">
                     <img src={item.match?.away_team?.url_logo} className="w-5 h-5 object-contain flex-shrink-0" alt="" />
-                    <span className="truncate">{item.match?.away_team?.name}</span>
+                    <span className="truncate text-left">{item.match?.away_team?.name}</span>
                   </div>
+
                 </div>
               </div>
             ))
@@ -369,7 +372,7 @@ export function filterMatchesByMetric({ predictions, teamId, metricType }) {
 
     const isExact = teamReal === teamPred && oppReal === oppPred;
     
-    // Tendência do resultado
+    // Tendência do resultado real vs. palpite
     const isTeamWin = teamReal > oppReal;
     const isPredWin = teamPred > oppPred;
     
@@ -379,25 +382,27 @@ export function filterMatchesByMetric({ predictions, teamId, metricType }) {
     const isTeamLoss = teamReal < oppReal;
     const isPredLoss = teamPred < oppPred;
 
+    // Checa se o usuário acertou a tendência (se o palpite pontuou)
+    const hasPointed = (isTeamWin && isPredWin) || 
+                       (isTeamDraw && isPredDraw) || 
+                       (isTeamLoss && isPredLoss);
+
     switch (metricType) {
       case 'exact': 
         return isExact;
 
       case 'correctWins': 
-        // Inclui vitorias acertadas gerais (com ou sem cravada)
         return isTeamWin && isPredWin;
 
       case 'correctDraws': 
-        // Inclui empates acertados gerais
         return isTeamDraw && isPredDraw;
 
       case 'correctLosses': 
-        // Inclui derrotas acertadas gerais
         return isTeamLoss && isPredLoss;
 
       case 'correctGoals': 
-        // Acertou a quantidade exata de gols marcados por este time
-        return teamPred === teamReal;
+        // Precisa ter acertado a tendência (pontuado) E acertado a quantidade de gols deste time
+        return hasPointed && (teamPred === teamReal);
 
       default:
         return false;
