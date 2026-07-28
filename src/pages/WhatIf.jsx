@@ -16,7 +16,7 @@ export default function WhatIf() {
   
   const [league, setLeague] = useState(null); 
   const [teams, setTeams] = useState([]); 
-  const [rawPredictions, setRawPredictions] = useState([]); // Guardamos os palpites para o Drawer
+  const [rawPredictions, setRawPredictions] = useState([]);
   const [conference, setConference] = useState('all'); 
   const [division, setDivision] = useState('all'); 
   const [group, setGroup] = useState('all'); 
@@ -43,7 +43,7 @@ export default function WhatIf() {
         
         setLeague(userLeague); 
         setTeams(buildTeams(scenario)); 
-        setRawPredictions(scenario.predictions || []); // Armazena a lista de palpites retornada
+        setRawPredictions(scenario.predictions || []);
       } catch (loadError) { 
         console.error('Unable to load what-if scenario', loadError); 
         setError(true); 
@@ -71,6 +71,7 @@ export default function WhatIf() {
         </div>
       </header>
 
+      {/* Filtros Fixos no Topo na rolagem */}
       {!isFootball && <NhlFilters conference={conference} division={division} setConference={setConference} setDivision={setDivision} t={t} />}
       {isWorldCup && <WorldCupFilter group={group} setGroup={setGroup} t={t} />}
 
@@ -126,7 +127,7 @@ function buildTeams({ stats, teams, matches }) {
 
 function NhlFilters({ conference, division, setConference, setDivision, t }) { 
   return (
-    <div className="max-w-7xl mx-auto grid grid-cols-2 gap-4 mb-6 bg-[#1A1C3A] p-4 rounded-[25px] border border-[#26283A]">
+    <div className="sticky top-0 z-30 max-w-7xl mx-auto grid grid-cols-2 gap-4 mb-6 bg-[#1A1C3A]/90 backdrop-blur-md p-4 rounded-[25px] border border-[#26283A] shadow-xl">
       <Select label={t('whatIf.conference')} value={conference} setValue={setConference} options={NHL_CONFERENCES} prefix="whatIf.conferences" t={t} />
       <Select label={t('whatIf.division')} value={division} setValue={setDivision} options={NHL_DIVISIONS} prefix="whatIf.divisions" t={t} />
     </div>
@@ -135,7 +136,7 @@ function NhlFilters({ conference, division, setConference, setDivision, t }) {
 
 function WorldCupFilter({ group, setGroup, t }) { 
   return (
-    <div className="max-w-7xl mx-auto mb-6 bg-[#1A1C3A] p-4 rounded-[25px] border border-[#26283A]">
+    <div className="sticky top-0 z-30 max-w-7xl mx-auto mb-6 bg-[#1A1C3A]/90 backdrop-blur-md p-4 rounded-[25px] border border-[#26283A] shadow-xl">
       <Select label={t('whatIf.group')} value={group} setValue={setGroup} options={WORLD_CUP_GROUP_IDS} prefix="whatIf.groups" t={t} />
     </div>
   ); 
@@ -284,10 +285,10 @@ function MatchesDrawer({ isOpen, onClose, team, metricLabel, matchesList, t }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end transition-opacity">
-      <div className="w-full max-w-md bg-[#1A1C3A] h-full shadow-2xl p-6 overflow-y-auto border-l border-[#26283A]">
+      <div className="w-full max-w-md bg-[#1A1C3A] h-full shadow-2xl overflow-y-auto border-l border-[#26283A] flex flex-col">
         
-        {/* Header Drawer */}
-        <div className="flex justify-between items-center mb-6 border-b border-[#26283A] pb-4">
+        {/* Header Drawer Fixo no Topo */}
+        <div className="sticky top-0 z-20 bg-[#1A1C3A] p-6 border-b border-[#26283A] flex justify-between items-center">
           <div>
             <span className="text-xs text-blue-400 font-bold uppercase tracking-wider">Detalhamento</span>
             <h3 className="text-lg font-black text-white flex items-center gap-2 mt-1">
@@ -300,8 +301,8 @@ function MatchesDrawer({ isOpen, onClose, team, metricLabel, matchesList, t }) {
           </button>
         </div>
 
-        {/* Match List */}
-        <div className="space-y-4">
+        {/* Match List com Padding Bottom generoso para rolar livre acima do BottomNav */}
+        <div className="p-6 space-y-4 pb-32 flex-1">
           {matchesList.length === 0 ? (
             <div className="text-center py-10 text-gray-400 font-bold text-xs uppercase">
               Nenhum jogo encontrado
@@ -314,19 +315,22 @@ function MatchesDrawer({ isOpen, onClose, team, metricLabel, matchesList, t }) {
                 </div>
                 
                 <div className="flex items-center justify-between text-sm font-black text-white">
-                  <div className="flex items-center gap-2 w-2/5 justify-end">
+                  {/* Mandante: afastado com gap-4 */}
+                  <div className="flex items-center gap-4 w-2/5 justify-end">
                     <span className="truncate">{item.match?.home_team?.name}</span>
                     <img src={item.match?.home_team?.url_logo} className="w-5 h-5 object-contain flex-shrink-0" alt="" />
                   </div>
                   
-                  <div className="px-3 py-1 bg-[#1A1C3A] rounded-lg border border-[#26283A] text-center flex-shrink-0">
-                    <div>{item.match?.goals_home} x {item.match?.goals_away}</div>
-                    <div className="text-[9px] text-blue-400 font-normal mt-0.5">
+                  {/* Caixa de Placar Central */}
+                  <div className="px-3 py-1.5 bg-[#1A1C3A] rounded-xl border border-[#26283A] text-center flex-shrink-0 mx-2">
+                    <div className="text-base tracking-widest">{item.match?.goals_home} x {item.match?.goals_away}</div>
+                    <div className="text-[9px] text-blue-400 font-normal mt-0.5 whitespace-nowrap">
                       Palpite: {item.prediction_home} x {item.prediction_away}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 w-2/5">
+                  {/* Visitante: afastado com gap-4 */}
+                  <div className="flex items-center gap-4 w-2/5">
                     <img src={item.match?.away_team?.url_logo} className="w-5 h-5 object-contain flex-shrink-0" alt="" />
                     <span className="truncate">{item.match?.away_team?.name}</span>
                   </div>
@@ -351,8 +355,9 @@ export function filterMatchesByMetric({ predictions, teamId, metricType }) {
     // Apenas partidas concluídas
     if (m.goals_home === null || m.goals_away === null) return false;
 
-    const isHome = Number(m.home_team_id) === Number(teamId);
-    const isAway = Number(m.away_team_id) === Number(teamId);
+    const targetId = Number(teamId);
+    const isHome = Number(m.home_team_id) === targetId;
+    const isAway = Number(m.away_team_id) === targetId;
 
     if (!isHome && !isAway) return false;
 
@@ -364,33 +369,35 @@ export function filterMatchesByMetric({ predictions, teamId, metricType }) {
 
     const isExact = teamReal === teamPred && oppReal === oppPred;
     
+    // Tendência do resultado
     const isTeamWin = teamReal > oppReal;
     const isPredWin = teamPred > oppPred;
-    const isCorrectWin = isTeamWin && isPredWin && !isExact;
-
+    
     const isTeamDraw = teamReal === oppReal;
     const isPredDraw = teamPred === oppPred;
-    const isCorrectDraw = isTeamDraw && isPredDraw && !isExact;
 
     const isTeamLoss = teamReal < oppReal;
     const isPredLoss = teamPred < oppPred;
-    const isCorrectLoss = isTeamLoss && isPredLoss && !isExact;
 
     switch (metricType) {
       case 'exact': 
         return isExact;
 
       case 'correctWins': 
-        return isCorrectWin;
+        // Inclui vitorias acertadas gerais (com ou sem cravada)
+        return isTeamWin && isPredWin;
 
       case 'correctDraws': 
-        return isCorrectDraw;
+        // Inclui empates acertados gerais
+        return isTeamDraw && isPredDraw;
 
       case 'correctLosses': 
-        return isCorrectLoss;
+        // Inclui derrotas acertadas gerais
+        return isTeamLoss && isPredLoss;
 
       case 'correctGoals': 
-        return (teamPred === teamReal) && (isCorrectWin || isCorrectLoss);
+        // Acertou a quantidade exata de gols marcados por este time
+        return teamPred === teamReal;
 
       default:
         return false;
