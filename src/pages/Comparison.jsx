@@ -110,7 +110,77 @@ export default function Comparison() {
 }
 
 function Loading({ label }) { return <div className="min-h-screen bg-[#0A0E2A] flex items-center justify-center"><div className="text-[#0077FF] font-black italic animate-pulse tracking-widest">{label}</div></div>; }
-function ComparisonCard({ match, users, predictions, points, cardRef, onShare, t }) { const started = hasMatchStarted(match.date); return <div ref={cardRef} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px] relative overflow-hidden"><button data-share-button type="button" onClick={() => onShare(match)} title={t('comparison.share.button')} className="absolute top-4 right-5 text-white/30 hover:text-[#0077FF] transition-colors z-20">↗</button><div className="flex justify-center items-center gap-6 mb-6 bg-[#0A0E2A]/50 py-4 px-6 rounded-[20px] max-w-md mx-auto"><MatchTeam team={match.home_team} align="right" /><div className="flex items-center gap-2.5 justify-center w-2/12 select-none"><span className="text-2xl font-black italic tracking-tighter text-white">{match.goals_home ?? '-'}</span><span className="text-[#0077FF] text-xs font-black italic opacity-40">X</span><span className="text-2xl font-black italic tracking-tighter text-white">{match.goals_away ?? '-'}</span></div><MatchTeam team={match.away_team} /></div><div className="grid gap-2">{users.map((user) => <PredictionRow key={user.id} user={user} prediction={predictions?.[user.id]} started={started} points={points} t={t} />)}</div></div>; }
+function ComparisonCard({ match, users, predictions, points, cardRef, onShare, t }) {
+  const started = hasMatchStarted(match.date);
+
+  return (
+    <div ref={cardRef} className="bg-[#1A1C3A] border border-[#26283A] p-5 rounded-[30px] relative overflow-hidden">
+      <button
+        data-share-button
+        type="button"
+        onClick={() => onShare(match)}
+        title={t('comparison.share.button')}
+        className="absolute top-4 right-5 text-white/30 hover:text-[#0077FF] transition-colors z-20"
+      >
+        ↗
+      </button>
+
+      {/* CABEÇALHO DA PARTIDA */}
+      <div className="bg-[#0A0E2A]/50 py-4 px-3 sm:px-6 rounded-[20px] max-w-md mx-auto mb-6 flex items-center justify-between">
+        
+        {/* Time Casa: Puxado pra direita (perto do placar) */}
+        <div className="flex-1 flex justify-end items-center gap-2 min-w-0 text-right">
+          <span className="text-xs sm:text-sm font-black italic uppercase text-white truncate">
+            {match.home_team?.name}
+          </span>
+          <img
+            src={match.home_team?.url_logo}
+            alt=""
+            className="w-6 h-6 sm:w-7 sm:h-7 object-contain flex-shrink-0"
+          />
+        </div>
+
+        {/* Placar Centralizado */}
+        <div className="flex items-center gap-1.5 sm:gap-2 justify-center px-3 select-none flex-shrink-0">
+          <span className="text-xl sm:text-2xl font-black italic tracking-tighter text-white">
+            {match.goals_home ?? '-'}
+          </span>
+          <span className="text-[#0077FF] text-xs font-black italic opacity-40">X</span>
+          <span className="text-xl sm:text-2xl font-black italic tracking-tighter text-white">
+            {match.goals_away ?? '-'}
+          </span>
+        </div>
+
+        {/* Time Visitante: Puxado pra esquerda (perto do placar) */}
+        <div className="flex-1 flex justify-start items-center gap-2 min-w-0 text-left">
+          <img
+            src={match.away_team?.url_logo}
+            alt=""
+            className="w-6 h-6 sm:w-7 sm:h-7 object-contain flex-shrink-0"
+          />
+          <span className="text-xs sm:text-sm font-black italic uppercase text-white truncate">
+            {match.away_team?.name}
+          </span>
+        </div>
+
+      </div>
+
+      {/* LISTA DE PALPITES DOS USUÁRIOS */}
+      <div className="grid gap-2">
+        {users.map((user) => (
+          <PredictionRow
+            key={user.id}
+            user={user}
+            prediction={predictions?.[user.id]}
+            started={started}
+            points={points}
+            t={t}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 function MatchTeam({ team, align }) { return <div className={`flex items-center gap-3 w-5/12 ${align ? 'justify-end' : 'justify-start'}`}><span className={`text-[11px] font-black uppercase text-white/80 tracking-wide truncate max-w-[90px] ${align ? 'text-right order-first' : 'text-left'}`}>{team?.name}</span><img src={team?.url_logo} className="w-7 h-7 object-contain" alt="" /></div>; }
 function PredictionRow({ user, prediction, started, points, t }) { const score = prediction?.points ?? 0; const theme = getPointTheme(score, points); const value = prediction ? (started ? `${prediction.home} x ${prediction.away}` : '?? x ??') : '-- x --'; return <div className={`flex justify-between items-center p-3 rounded-xl border ${theme.border} bg-[#0A0E2A]/40`}><span className="text-[10px] font-black uppercase italic text-white/50 w-1/4">{user.name.split(' ')[0]}</span><div className="w-2/4 flex justify-center"><span className={`font-black italic text-xs tracking-wider ${prediction ? 'text-white' : 'text-white/20'}`}>{value}</span></div><div className="w-1/4 flex justify-end"><div className={`min-w-[60px] text-center py-1 px-2 rounded-lg text-[8px] font-black italic tracking-wide ${theme.bg} ${theme.text}`}>{t('comparison.points', { count: score })}</div></div></div>; }
 function getPointTheme(score, points) { if (score > 0 && score === points.exact) return { bg: 'bg-[#39FF14]', text: 'text-[#2B302A]', border: 'border-[#39FF14]' }; if (score > 0 && score === points.winnerAndOneGoal) return { bg: 'bg-[#FAFF00]/40', text: 'text-white', border: 'border-[#FAFF00]/50' }; if (score > 0 && score === points.winnerOnly) return { bg: 'bg-[#0077FF]/40', text: 'text-white', border: 'border-[#0077FF]/50' }; return { bg: 'bg-[#0A0E2A]/60', text: 'text-white/20', border: 'border-white/5' }; }
