@@ -53,8 +53,16 @@ function StandingsTable({ teams, isFootball, isWorldCup, t }) {
         <table className="w-full text-left border-collapse min-w-[1100px]">
           <thead>
             <tr className="bg-[#0A0E2A] border-b border-[#26283A] text-gray-400 text-[9px] font-black uppercase italic">
-              <th className="py-4 pl-6 text-center">{t('whatIf.table.position')}</th>
-              <th className="py-4 pl-4">{t('whatIf.table.team')}</th>
+              {/* POSIÇÃO: STICKY ESQUERDA (0px) */}
+              <th className="py-4 px-3 text-center sticky left-0 z-20 bg-[#0A0E2A] w-12">
+                {t('whatIf.table.position')}
+              </th>
+              
+              {/* TIME: STICKY ESQUERDA (48px - largura da coluna de posição) */}
+              <th className="py-4 pl-3 pr-4 sticky left-[48px] z-20 bg-[#0A0E2A] border-r border-[#26283A] shadow-[4px_0_10px_rgba(0,0,0,0.5)]">
+                {t('whatIf.table.team')}
+              </th>
+
               {isWorldCup && <th className="py-4 text-center">{t('whatIf.table.group')}</th>}
               {headers.map(([label]) => (
                 <th key={label} className={`py-4 text-center ${getColumnColor(label)}`}>
@@ -65,12 +73,18 @@ function StandingsTable({ teams, isFootball, isWorldCup, t }) {
           </thead>
           <tbody className="divide-y divide-[#26283A] text-xs font-bold">
             {teams.map((team, index) => (
-              <tr key={team.id} className="hover:bg-[#0A0E2A]/40">
-                <td className="py-4 pl-6 text-center text-gray-500">{index + 1}º</td>
-                <td className="py-4 pl-4 flex items-center gap-3">
-                  <img src={team.logo} className="w-6 h-6 object-contain" alt="" />
-                  <span className="uppercase truncate text-white">{team.name}</span>
+              <tr key={team.id} className="hover:bg-[#0A0E2A]/40 group">
+                {/* POSIÇÃO STICKY BODY */}
+                <td className="py-4 px-3 text-center text-gray-500 sticky left-0 z-10 bg-[#1A1C3A] group-hover:bg-[#121431]">
+                  {index + 1}º
                 </td>
+
+                {/* TIME STICKY BODY */}
+                <td className="py-4 pl-3 pr-4 flex items-center gap-3 sticky left-[48px] z-10 bg-[#1A1C3A] group-hover:bg-[#121431] border-r border-[#26283A] shadow-[4px_0_10px_rgba(0,0,0,0.5)]">
+                  <img src={team.logo} className="w-6 h-6 object-contain flex-shrink-0" alt="" />
+                  <span className="uppercase truncate text-white max-w-[120px]">{team.name}</span>
+                </td>
+
                 {isWorldCup && <td className="py-4 text-center">{t(`whatIf.groups.${team.group}`, { defaultValue: team.group })}</td>}
                 {headers.map(([label, property]) => (
                   <td key={label} className={`py-4 text-center ${getColumnColor(label)}`}>
