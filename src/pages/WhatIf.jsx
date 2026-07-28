@@ -33,14 +33,13 @@ function StandingsTable({ teams, isFootball, isWorldCup, t }) {
     ['withoutPrediction', 'withoutPrediction']
   ];
 
-  // Mapeamento das cores baseado no rótulo da coluna
   const getColumnColor = (label) => {
     switch (label) {
       case 'correctWins': return 'text-green-500';
       case 'correctDraws': return 'text-orange-400';
       case 'correctLosses': return 'text-red-500';
       case 'correctGoals': return 'text-yellow-500';
-      case 'exact': return 'text-[#0077FF]';
+      case 'exact': return 'text-[#0077FF] font-black';
       case 'withoutPrediction': return 'text-gray-500';
       case 'points': return 'font-black text-[#0077FF]';
       default: return '';
@@ -48,24 +47,26 @@ function StandingsTable({ teams, isFootball, isWorldCup, t }) {
   };
 
   return (
-    <div className="max-w-7xl mx-auto bg-[#1A1C3A] border border-[#26283A] rounded-[35px] shadow-2xl overflow-hidden">
+    <div className="max-w-7xl mx-auto bg-[#1A1C3A] border border-[#26283A] rounded-[24px] sm:rounded-[35px] shadow-2xl overflow-hidden">
       <div className="overflow-x-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse min-w-[1100px]">
+        {/* Aumentamos a min-w total para garantir que a tabela não "esprema" no mobile */}
+        <table className="w-full text-left border-collapse min-w-[1300px]">
           <thead>
-            <tr className="bg-[#0A0E2A] border-b border-[#26283A] text-gray-400 text-[9px] font-black uppercase italic">
-              {/* POSIÇÃO: STICKY ESQUERDA (0px) */}
-              <th className="py-4 px-3 text-center sticky left-0 z-20 bg-[#0A0E2A] w-12">
-                {t('whatIf.table.position')}
-              </th>
+            <tr className="bg-[#0A0E2A] border-b border-[#26283A] text-gray-400 text-[10px] font-black uppercase italic tracking-wider">
               
-              {/* TIME: STICKY ESQUERDA (48px - largura da coluna de posição) */}
-              <th className="py-4 pl-3 pr-4 sticky left-[48px] z-20 bg-[#0A0E2A] border-r border-[#26283A] shadow-[4px_0_10px_rgba(0,0,0,0.5)]">
-                {t('whatIf.table.team')}
+              {/* COLUNA FIXA: POS + TIME (Com largura confortável) */}
+              <th className="py-4 px-4 sticky left-0 z-20 bg-[#0A0E2A] border-r border-[#26283A] shadow-[4px_0_12px_rgba(0,0,0,0.6)] w-[180px] min-w-[180px] sm:w-[220px] sm:min-w-[220px]">
+                <div className="flex items-center gap-3">
+                  <span className="w-6 text-center">{t('whatIf.table.position')}</span>
+                  <span>{t('whatIf.table.team')}</span>
+                </div>
               </th>
 
-              {isWorldCup && <th className="py-4 text-center">{t('whatIf.table.group')}</th>}
+              {isWorldCup && <th className="py-4 px-4 text-center min-w-[70px]">{t('whatIf.table.group')}</th>}
+              
+              {/* COLUNAS DE ESTATÍSTICAS (Largura mínima de 80px por coluna) */}
               {headers.map(([label]) => (
-                <th key={label} className={`py-4 text-center ${getColumnColor(label)}`}>
+                <th key={label} className={`py-4 px-4 text-center min-w-[80px] whitespace-nowrap ${getColumnColor(label)}`}>
                   {t(`whatIf.table.${label}`)}
                 </th>
               ))}
@@ -73,21 +74,33 @@ function StandingsTable({ teams, isFootball, isWorldCup, t }) {
           </thead>
           <tbody className="divide-y divide-[#26283A] text-xs font-bold">
             {teams.map((team, index) => (
-              <tr key={team.id} className="hover:bg-[#0A0E2A]/40 group">
-                {/* POSIÇÃO STICKY BODY */}
-                <td className="py-4 px-3 text-center text-gray-500 sticky left-0 z-10 bg-[#1A1C3A] group-hover:bg-[#121431]">
-                  {index + 1}º
+              <tr key={team.id} className="hover:bg-[#0A0E2A]/40 transition-colors group">
+                
+                {/* DADO FIXO: POS + ESCUDO + NOME */}
+                <td className="py-3.5 px-4 sticky left-0 z-10 bg-[#1A1C3A] group-hover:bg-[#121431] border-r border-[#26283A] shadow-[4px_0_12px_rgba(0,0,0,0.6)]">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-6 text-center text-gray-500 text-[11px] font-black flex-shrink-0">
+                      {index + 1}º
+                    </span>
+                    <img src={team.logo} className="w-6 h-6 object-contain flex-shrink-0" alt="" />
+                    <span className="uppercase truncate text-white text-xs tracking-wide max-w-[100px] sm:max-w-[130px]">
+                      {team.name}
+                    </span>
+                  </div>
                 </td>
 
-                {/* TIME STICKY BODY */}
-                <td className="py-4 pl-3 pr-4 flex items-center gap-3 sticky left-[48px] z-10 bg-[#1A1C3A] group-hover:bg-[#121431] border-r border-[#26283A] shadow-[4px_0_10px_rgba(0,0,0,0.5)]">
-                  <img src={team.logo} className="w-6 h-6 object-contain flex-shrink-0" alt="" />
-                  <span className="uppercase truncate text-white max-w-[120px]">{team.name}</span>
-                </td>
-
-                {isWorldCup && <td className="py-4 text-center">{t(`whatIf.groups.${team.group}`, { defaultValue: team.group })}</td>}
+                {isWorldCup && (
+                  <td className="py-3.5 px-4 text-center">
+                    {t(`whatIf.groups.${team.group}`, { defaultValue: team.group })}
+                  </td>
+                )}
+                
+                {/* CÉLULAS COM ESPAÇAMENTO E ÁREA CLICÁVEL ESPAÇOSA */}
                 {headers.map(([label, property]) => (
-                  <td key={label} className={`py-4 text-center ${getColumnColor(label)}`}>
+                  <td 
+                    key={label} 
+                    className={`py-3.5 px-4 text-center text-sm font-extrabold whitespace-nowrap ${getColumnColor(label)}`}
+                  >
                     {property === 'goalDifference' && team[property] > 0 ? `+${team[property]}` : team[property]}
                   </td>
                 ))}
