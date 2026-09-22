@@ -1,3 +1,38 @@
+import { supabase } from '../supabaseClient';
+
+export async function getAvailableSeasons(officialLeagueId) {
+  const { data, error } = await supabase
+    .from('matches')
+    .select('season')
+    .eq('league_id', officialLeagueId)
+    .not('season', 'is', null)
+    .order('season', { ascending: false });
+
+  if (error) throw error;
+  // Retorna uma lista única e em ordem decrescente
+  return [...new Set(data.map((m) => m.season))];
+}
+
+export async function getLeagueRanking(userLeagueId, season = null) {
+  let query = supabase
+    .from('ranking_detalhado')
+    .select('*')
+    .eq('user_league_id', userLeagueId);
+
+  if (season) {
+    query = query.eq('season', season);
+  }
+
+  const { data, error } = await query
+    .order('total_points', { ascending: false })
+    .order('cravadas', { ascending: false })
+    .order('vencedor_bonus', { ascending: false })
+    .order('vencedor_only', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
 export async function getGlobalRanking(officialLeagueId, season = null) {
   let query = supabase
     .from('predictions')
