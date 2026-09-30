@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import BottomNav from '../components/layout/BottomNav';
 import Logo from '../components/Logo';
+import { supabase } from '../supabaseClient';
 import { getCurrentUser } from '../services/authService';
 import { getUserLeagueDetails } from '../services/leagueService';
 import { getGlobalRanking, getLeagueRanking, getAvailableSeasons } from '../services/rankingService';
@@ -13,6 +14,7 @@ export default function Ranking() {
   const { t } = useTranslation();
 
   const [league, setLeague] = useState(null);
+  const [competitionName, setCompetitionName] = useState('');
   const [currentUserId, setCurrentUserId] = useState(null);
   const [leagueRanking, setLeagueRanking] = useState([]);
   const [globalRanking, setGlobalRanking] = useState([]);
@@ -23,7 +25,7 @@ export default function Ranking() {
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // 1. Inicializa metadados, usuário e lista de temporadas
+  // 1. Inicializa metadados, liga, nome oficial da competição e temporadas
   useEffect(() => {
     if (!ligaId) return;
     const init = async () => {
@@ -37,25 +39,41 @@ export default function Ranking() {
         setLeague(userLeague);
         setCurrentUserId(user?.id ?? null);
 
+        // Busca o nome oficial da competição (NHL, Brasileirão, etc.)
+        if (userLeague?.officialLeagueId) {
+          const { data: officialLeague } = await supabase
+            .from('leagues')
+            .select('name')
+            .eq('id', userLeague.officialLeagueId)
+            .single();
+
+          if (officialLeague?.name) {
+            setCompetitionName(officialLeague.name);
+          }
+        }
+
         const available = await getAvailableSeasons(userLeague.officialLeagueId);
         setSeasons(available);
         if (available.length > 0) {
-          setSelectedSeason(available[0]); // Seleciona a mais recente
+          setSelectedSeason(String(available[0])); // Seleciona a mais recente
+        } else {
+          setLoading(false);
         }
       } catch (err) {
-        console.error('Erro ao carregar dados do ranking:', err);
+        console.error('Erro ao carregar dados iniciais:', err);
         setError(true);
-      } finally {
         setLoading(false);
       }
     };
     init();
   }, [ligaId]);
 
-  // 2. Busca pontuações sempre que a liga ou a temporada selecionada mudar
+  // 2. Busca o ranking APENAS quando selectedSeason estiver preenchido
   useEffect(() => {
-    if (!league) return;
+    if (!league || !selectedSeason) return;
+
     const loadRankings = async () => {
+      setLoading(true);
       try {
         const [leagueData, globalData] = await Promise.all([
           getLeagueRanking(league.id, selectedSeason),
@@ -65,23 +83,26 @@ export default function Ranking() {
         setGlobalRanking(globalData);
       } catch (err) {
         console.error('Erro ao carregar rankings por temporada:', err);
+      } finally {
+        setLoading(false);
       }
     };
+
     loadRankings();
   }, [selectedSeason, league]);
 
   const data = tab === 'league' ? leagueRanking : globalRanking;
 
-  // Formata o texto simples para compartilhamento com medalhas e números
+  // Compartilhamento com medalhas, números e identificação correta da competição e liga
   const handleShare = async () => {
     if (!data.length || !league) return;
 
-    const competitionName = league.officialLeagueName || 'Competição';
+    const finalCompetitionName = competitionName || league.officialLeagueName || 'Competição';
     const leagueName = league.name || 'Liga';
     const seasonLabel = selectedSeason ? ` (${selectedSeason})` : '';
 
     const lines = [
-      `🏆 Classificação - ${competitionName}${seasonLabel}`,
+      `🏆 Classificação - ${finalCompetitionName}${seasonLabel}`,
       `👥 Liga: ${leagueName}`,
       '',
     ];
