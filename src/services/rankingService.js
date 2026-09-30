@@ -9,18 +9,18 @@ export async function getAvailableSeasons(officialLeagueId) {
     .order('season', { ascending: false });
 
   if (error) throw error;
-  // Retorna uma lista única e em ordem decrescente
   return [...new Set(data.map((m) => m.season))];
 }
 
-export async function getLeagueRanking(userLeagueId, season = null) {
+export async function getLeagueRanking(userLeagueId, season) {
   let query = supabase
     .from('ranking_detalhado')
     .select('*')
     .eq('user_league_id', userLeagueId);
 
+  // Filtro estrito por temporada para nunca misturar os anos
   if (season) {
-    query = query.eq('season', season);
+    query = query.eq('season', String(season));
   }
 
   const { data, error } = await query
@@ -33,7 +33,7 @@ export async function getLeagueRanking(userLeagueId, season = null) {
   return data;
 }
 
-export async function getGlobalRanking(officialLeagueId, season = null) {
+export async function getGlobalRanking(officialLeagueId, season) {
   let query = supabase
     .from('predictions')
     .select('user_id, prediction_home, prediction_away, users(name), matches!inner(goals_home, goals_away, status, league_id, season)')
@@ -41,7 +41,7 @@ export async function getGlobalRanking(officialLeagueId, season = null) {
     .eq('matches.league_id', officialLeagueId);
 
   if (season) {
-    query = query.eq('matches.season', season);
+    query = query.eq('matches.season', String(season));
   }
 
   const { data, error } = await query;
