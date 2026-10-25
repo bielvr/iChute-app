@@ -21,102 +21,84 @@ serve(async (req) => {
     }
   }
 
+  const endpoints = [
+    // Futebol
+    "BR_League",
+    "Bundesliga_Games",
+    "SerieA_Games",
+    "LaLiga_Games",
+    "PL_Games",
+    "World_Cup",
+    "UCL-Games",
+    // NHL
+    "NHL_Games",
+    // Esportes Americanos (BDL)
+    "NBA-Games",
+    "MLB-Games",
+    "NFL-Games"
+  ];
+
   try {
-    // ==========================================
-    // 1. FUNÇÕES DE FUTEBOL
-    // ==========================================
-    console.log("Chamando BR_League...");
-    await fetch(`${regionUrl}/BR_League`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
+    const headers = { 
+      'Authorization': `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json'
+    };
+
+    console.log("Disparando todas as ligas em paralelo via Promise.allSettled...");
+
+    const results = await Promise.allSettled(
+      endpoints.map(async (fnName) => {
+        const start = Date.now();
+        try {
+          const res = await fetch(`${regionUrl}/${fnName}`, {
+            method: 'POST',
+            headers
+          });
+          const text = await res.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            data = text;
+          }
+          return {
+            function: fnName,
+            status: res.status,
+            durationMs: Date.now() - start,
+            response: data
+          };
+        } catch (error: any) {
+          return {
+            function: fnName,
+            status: 500,
+            durationMs: Date.now() - start,
+            error: error.message
+          };
+        }
+      })
+    );
+
+    const summary = results.map((r, i) => {
+      if (r.status === 'fulfilled') {
+        return r.value;
+      }
+      return {
+        function: endpoints[i],
+        status: 500,
+        error: r.reason?.message ?? 'Unknown rejection'
+      };
     });
 
-    console.log("Chamando Bundesliga_Games...");
-    await fetch(`${regionUrl}/Bundesliga_Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    console.log("Chamando SerieA_Games...");
-    await fetch(`${regionUrl}/SerieA_Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    console.log("Chamando LaLiga_Games...");
-    await fetch(`${regionUrl}/LaLiga_Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    console.log("Chamando PL_Games...");
-    await fetch(`${regionUrl}/PL_Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    console.log("Chamando World_Cup...");
-    await fetch(`${regionUrl}/World_Cup`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-        console.log("Chamando UCL-Games...");
-    await fetch(`${regionUrl}/UCL-Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    // ==========================================
-    // 2. FUNÇÃO DA NHL
-    // ==========================================
-    console.log("Chamando NHL_Games...");
-    await fetch(`${regionUrl}/NHL_Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    // ==========================================
-    // 3. NOVAS FUNÇÕES: ESPORTES AMERICANOS (BDL)
-    // ==========================================
-    console.log("Chamando NBA-Games...");
-    await fetch(`${regionUrl}/NBA-Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    console.log("Chamando MLB-Games...");
-    await fetch(`${regionUrl}/MLB-Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    console.log("Chamando NFL-Games...");
-    await fetch(`${regionUrl}/NFL-Games`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${serviceRoleKey}` }
-    });
-
-    // ==========================================
-    // 4. VERIFICAÇÃO DE RESULTADOS LEGACY (OPCIONAL)
-    // ==========================================
-    const { data: matches } = await supabase
-      .from('matches')
-      .select('id, external_id, sport_id, start_at')
-      .neq('status', 'finished')
-      .lt('start_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
-
-    for (const match of matches || []) {
-      // Sua lógica atual permanece intocada aqui...
-    }
+    console.log("Resumo da execução paralela:", JSON.stringify(summary));
 
     return new Response(JSON.stringify({ 
-      message: "Maestro executado com sucesso: Todas as ligas (Futebol, NHL, NBA, MLB e NFL) foram disparadas!" 
-    }), {
+      message: "Maestro executado com sucesso em paralelo via Promise.allSettled!",
+      summary
+    }, null, 2), {
       headers: { "Content-Type": "application/json" }
-    })
+    });
 
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
-})
+});
