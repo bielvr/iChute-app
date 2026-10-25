@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 // IMPORTAÇÃO CORRIGIDA: usa a função que busca o id (int8) da tabela public.users
@@ -26,7 +26,7 @@ export default function Ligas() {
 
   const [showHelpModal, setShowHelpModal] = useState(false);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       // Pega o usuário correto da tabela public.users
@@ -46,11 +46,11 @@ export default function Ligas() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [sportId]);
 
   useEffect(() => {
     fetchData();
-  }, [sportId]);
+  }, [fetchData]);
 
   const handleJoinLeague = async () => {
     if (!inviteCodeInput) return alert(t('ligas.alerts.fillCode'));

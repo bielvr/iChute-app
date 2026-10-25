@@ -1,12 +1,12 @@
 // public/sw.js
 const CACHE_NAME = 'ichute-v1';
 
-self.addEventListener('install', (e) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(clients.claim());
+  e.waitUntil(self.clients.claim());
 });
 
 self.addEventListener('fetch', (e) => {
@@ -43,7 +43,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       // Se o app já estiver aberto em uma aba, foca nela
       for (const client of clientList) {
         if (client.url && 'focus' in client) {
@@ -51,8 +51,8 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       // Se tiver fechado, abre a aba no app
-      if (clients.openWindow) {
-        return clients.openWindow(event.notification.data?.url || '/');
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(event.notification.data?.url || '/');
       }
     })
   );

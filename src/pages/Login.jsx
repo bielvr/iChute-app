@@ -63,7 +63,7 @@ export default function Login() {
             <Trans
               i18nKey="auth.tagline"
               defaults="A emoção de acertar o placar, <1>apenas pela diversão.</1>"
-              components={{ 1: <span className="text-[#0077FF]" /> }}
+              components={{ 1: <span key="tagline-highlight" className="text-[#0077FF]" /> }}
             />
           </h1>
 

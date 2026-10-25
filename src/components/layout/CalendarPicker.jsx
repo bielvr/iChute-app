@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildCalendarDays, changeMonth, formatCalendarDate, isToday, toInputDate } from '../../utils/date';
 
@@ -9,9 +9,14 @@ export default function CalendarPicker({ selectedDate, gamesPerDay = {}, onSelec
     selectedDate ? new Date(`${selectedDate}T12:00:00`) : new Date()
   );
 
-  useEffect(() => {
-    if (selectedDate) setCurrentMonth(new Date(`${selectedDate}T12:00:00`));
-  }, [selectedDate]);
+  const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
+
+  if (selectedDate !== prevSelectedDate) {
+    setPrevSelectedDate(selectedDate);
+    if (selectedDate) {
+      setCurrentMonth(new Date(`${selectedDate}T12:00:00`));
+    }
+  }
 
   const selectDate = (date) => {
     onSelectDate(date);
