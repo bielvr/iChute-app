@@ -208,7 +208,7 @@ export default function Stats() {
                   name={highlights.topExactUser?.name || 'Aguardando'}
                   detail={
                     highlights.topExactUser
-                      ? `${highlights.topExactUser.exactCount} cravadas (${highlights.topExactUser.percentage}%)`
+                      ? `${highlights.topExactUser.cravadas} cravadas (${highlights.topExactUser.percentage}%)`
                       : 'Sem cravadas registradas'
                   }
                 />
@@ -312,7 +312,7 @@ export default function Stats() {
                             )}
                           </div>
                           <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
-                            🎯 {user.exactCount} cravadas ({user.exactPercentage}%)
+                            🎯 {user.cravadas} cravadas ({user.exactPercentage}%)
                           </span>
                         </div>
                       </div>
@@ -375,8 +375,10 @@ export default function Stats() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {bestByRound.map((roundItem) => {
-                    const winnerNames = roundItem.winners.map((w) => w.name).join(', ');
-                    const isMultiple = roundItem.winners.length > 1;
+                    const winnerNames =
+                      roundItem.winnerName ||
+                      (Array.isArray(roundItem.winners) ? roundItem.winners.join(', ') : '');
+                    const isMultiple = Array.isArray(roundItem.winners) && roundItem.winners.length > 1;
 
                     return (
                       <div

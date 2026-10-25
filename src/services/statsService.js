@@ -1,29 +1,72 @@
 import { supabase } from '../supabaseClient';
+import { getLeagueRanking, getAvailableSeasons } from './rankingService';
 import { toInputDate } from '../utils/date';
 
+export { getAvailableSeasons };
+
 /**
- * Busca as temporadas distintas da liga na tabela matches em ordem decrescente.
- * @param {number|string} officialLeagueId
- * @returns {Promise<string[]>}
+ * Busca todas as previsões vinculadas aos IDs de partidas fornecidos,
+ * particionando em blocos (chunks) e paginando com range para contornar
+ * o limite padrão de 1.000 registros do PostgREST.
+ *
+ * @param {number|string} userLeagueId
+ * @param {number[]} matchIds
+ * @returns {Promise<Array>}
  */
-export async function getAvailableSeasons(officialLeagueId) {
-  const { data, error } = await supabase
-    .from('matches')
-    .select('season')
-    .eq('league_id', Number(officialLeagueId))
-    .not('season', 'is', null);
+async function fetchAllLeaguePredictions(userLeagueId, matchIds) {
+  if (!matchIds || matchIds.length === 0) return [];
 
-  if (error) throw error;
+  const CHUNK_SIZE = 50;
+  const chunks = [];
+  for (let i = 0; i < matchIds.length; i += CHUNK_SIZE) {
+    chunks.push(matchIds.slice(i, i + CHUNK_SIZE));
+  }
 
-  const rawSeasons = (data || []).map((m) => String(m.season)).filter(Boolean);
-  const uniqueSeasons = [...new Set(rawSeasons)];
-  uniqueSeasons.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const chunkData = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-  return uniqueSeasons;
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data, error } = await supabase
+          .from('predictions')
+          .select('user_id, match_id, points_earned, users(id, name)')
+          .eq('user_league_id', Number(userLeagueId))
+          .in('match_id', chunk)
+          .range(from, to);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          chunkData.push(...data);
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page += 1;
+          }
+        }
+      }
+
+      return chunkData;
+    })
+  );
+
+  return results.flat();
 }
 
 /**
- * Busca e calcula estatísticas consolidadas da liga para uma temporada.
+ * Busca e consolida as estatísticas oficiais da liga:
+ * 1. Ranking com gaps a partir da view oficial ranking_detalhado (idêntico à tela de Ranking).
+ * 2. Melhores por rodada sem corte de truncamento do PostgREST.
+ * 3. Hall da Fama da temporada (Mais Certeiro, Recorde em Rodada, Eficiência).
+ *
  * @param {object} params
  * @param {number|string} params.userLeagueId
  * @param {number|string} params.officialLeagueId
@@ -34,181 +77,156 @@ export async function getLeagueStats({ userLeagueId, officialLeagueId, season })
   const numericOfficialLeagueId = Number(officialLeagueId);
   const seasonStr = String(season);
 
-  const [
-    { data: matches, error: matchesError },
-    { data: predictions, error: predictionsError },
-    { data: members, error: membersError },
-  ] = await Promise.all([
+  // 1. Busca dados do ranking oficial e partidas finalizadas em paralelo
+  const [rankingData, matchesResult] = await Promise.all([
+    getLeagueRanking(numericUserLeagueId, seasonStr),
     supabase
       .from('matches')
-      .select('id, round, date, home_team_id, away_team_id, goals_home, goals_away, season, status')
+      .select('id, round, date, goals_home, goals_away, status')
       .eq('league_id', numericOfficialLeagueId)
       .eq('season', seasonStr)
-      .eq('status', 'finished')
+      .not('goals_home', 'is', null)
+      .order('round', { ascending: true })
       .order('date', { ascending: true }),
-    supabase
-      .from('predictions')
-      .select(`
-        user_id,
-        match_id,
-        points_earned,
-        prediction_home,
-        prediction_away,
-        users (id, name),
-        match:matches!inner (
-          id,
-          round,
-          date,
-          season,
-          status,
-          goals_home,
-          goals_away
-        )
-      `)
-      .eq('user_league_id', numericUserLeagueId)
-      .eq('match.season', seasonStr)
-      .eq('match.status', 'finished'),
-    supabase
-      .from('user_league_members')
-      .select('user_id, users(id, name)')
-      .eq('user_league_id', numericUserLeagueId),
   ]);
 
-  if (matchesError) throw matchesError;
-  if (predictionsError) throw predictionsError;
-  if (membersError) throw membersError;
+  if (matchesResult.error) throw matchesResult.error;
 
-  const validMatches = matches || [];
-  const validPredictions = (predictions || []).map((p) => ({
-    ...p,
-    users: Array.isArray(p.users) ? p.users[0] : p.users,
-    match: Array.isArray(p.match) ? p.match[0] : p.match,
-  }));
+  const matches = matchesResult.data || [];
+  const officialRanking = rankingData || [];
 
-  // Mapeia participantes da liga
-  const usersMap = {};
-  (members || []).forEach((m) => {
-    const u = Array.isArray(m.users) ? m.users[0] : m.users;
-    const uid = Number(m.user_id);
-    usersMap[uid] = {
-      id: uid,
-      name: u?.name || `Usuário ${uid}`,
+  // ==========================================
+  // SEÇÃO DE GAPS BASEADA NO RANKING OFICIAL
+  // ==========================================
+  const leaderPoints = officialRanking.length > 0 ? Number(officialRanking[0].total_points || 0) : 0;
+
+  const rankingWithGaps = officialRanking.map((user, index) => {
+    const isLeader = index === 0;
+    const totalPoints = Number(user.total_points || 0);
+    const cravadas = Number(user.cravadas || 0);
+    const totalJogos = Number(user.total_jogos || 0);
+    const aheadUser = index > 0 ? officialRanking[index - 1] : null;
+
+    const diffToLeader = isLeader ? 0 : Math.max(0, leaderPoints - totalPoints);
+    const diffToAhead = isLeader
+      ? 0
+      : Math.max(0, Number(aheadUser?.total_points || 0) - totalPoints);
+
+    const exactPercentage =
+      totalJogos > 0 ? Number(((cravadas / totalJogos) * 100).toFixed(1)) : 0;
+
+    return {
+      id: Number(user.user_id),
+      name: user.user_name || `Participante ${user.user_id}`,
+      totalPoints,
+      cravadas,
+      totalJogos,
+      exactPercentage,
+      position: index + 1,
+      isLeader,
+      diffToLeader,
+      diffToAhead,
+      aheadPosition: index,
+      aheadName: aheadUser?.user_name ?? null,
     };
   });
 
-  // Garante que qualquer participante com predição seja mapeado
-  validPredictions.forEach((p) => {
-    const uid = Number(p.user_id);
-    if (!usersMap[uid]) {
-      usersMap[uid] = {
-        id: uid,
-        name: p.users?.name || `Usuário ${uid}`,
-      };
-    }
-  });
-
-  // Estatísticas acumuladas por usuário
-  const userStats = {};
-  Object.keys(usersMap).forEach((uid) => {
-    userStats[uid] = {
-      id: Number(uid),
-      name: usersMap[uid].name,
-      totalPoints: 0,
-      exactCount: 0,
-      totalPredictions: 0,
-    };
-  });
-
-  // Agrupamento por Rodada (ou Data na ausência de round)
-  const roundPointsMap = {};
+  // ==========================================
+  // CÁLCULO DE MELHORES POR RODADA E RECORDE
+  // ==========================================
+  // Mapeia matches por rodada ou data
+  const hasRounds = matches.some((m) => m.round !== null && m.round !== undefined);
+  const matchGroupMap = {};
+  const validMatchIds = [];
   const roundMetaMap = {};
 
-  validPredictions.forEach((p) => {
+  matches.forEach((m) => {
+    validMatchIds.push(m.id);
+
+    const groupKey = hasRounds
+      ? `round_${m.round}`
+      : `date_${m.date ? toInputDate(m.date) : 'all'}`;
+
+    matchGroupMap[m.id] = groupKey;
+
+    if (!roundMetaMap[groupKey]) {
+      roundMetaMap[groupKey] = {
+        key: groupKey,
+        label: hasRounds ? `Rodada ${m.round}` : m.date ? toInputDate(m.date) : 'Rodada',
+        sortOrder: hasRounds
+          ? Number(m.round)
+          : m.date
+          ? new Date(m.date).getTime()
+          : 0,
+      };
+    }
+  });
+
+  // Busca todas as previsões associadas sem sofrer truncamento do PostgREST
+  const allPredictions = await fetchAllLeaguePredictions(numericUserLeagueId, validMatchIds);
+
+  // Agrupa pontos por rodada e por participante
+  const roundUserScores = {}; // { [groupKey]: { [userId]: { name, points } } }
+
+  allPredictions.forEach((p) => {
+    const groupKey = matchGroupMap[p.match_id];
+    if (!groupKey) return;
+
     const uid = Number(p.user_id);
-    const m = p.match;
-    if (!m) return;
-
+    const userObj = Array.isArray(p.users) ? p.users[0] : p.users;
+    const userName = userObj?.name || `Usuário ${uid}`;
     const points = Number(p.points_earned || 0);
-    const isExact =
-      m.goals_home !== null &&
-      m.goals_away !== null &&
-      Number(p.prediction_home) === Number(m.goals_home) &&
-      Number(p.prediction_away) === Number(m.goals_away);
 
-    if (userStats[uid]) {
-      userStats[uid].totalPoints += points;
-      userStats[uid].totalPredictions += 1;
-      if (isExact) userStats[uid].exactCount += 1;
+    if (!roundUserScores[groupKey]) {
+      roundUserScores[groupKey] = {};
     }
 
-    const roundKey =
-      m.round !== null && m.round !== undefined
-        ? `round_${m.round}`
-        : `date_${m.date ? toInputDate(m.date) : 'all'}`;
-
-    if (!roundPointsMap[roundKey]) {
-      roundPointsMap[roundKey] = {};
-      roundMetaMap[roundKey] = {
-        key: roundKey,
-        round: m.round,
-        date: m.date,
-        label:
-          m.round !== null && m.round !== undefined
-            ? `Rodada ${m.round}`
-            : m.date
-            ? toInputDate(m.date)
-            : 'Rodada',
-        sortOrder:
-          m.round !== null && m.round !== undefined
-            ? Number(m.round)
-            : m.date
-            ? new Date(m.date).getTime()
-            : 0,
+    if (!roundUserScores[groupKey][uid]) {
+      roundUserScores[groupKey][uid] = {
+        userId: uid,
+        name: userName,
+        points: 0,
       };
     }
 
-    roundPointsMap[roundKey][uid] = (roundPointsMap[roundKey][uid] || 0) + points;
+    roundUserScores[groupKey][uid].points += points;
   });
 
-  // Melhores pontuadores de cada rodada
-  const bestByRound = Object.keys(roundPointsMap)
-    .map((roundKey) => {
-      const meta = roundMetaMap[roundKey];
-      const scores = roundPointsMap[roundKey];
-      const userIds = Object.keys(scores);
+  // Determina os melhores de cada rodada
+  const bestByRound = Object.keys(roundMetaMap)
+    .map((groupKey) => {
+      const meta = roundMetaMap[groupKey];
+      const scoresMap = roundUserScores[groupKey] || {};
+      const scores = Object.values(scoresMap);
 
-      if (userIds.length === 0) return null;
+      if (scores.length === 0) return null;
 
       let maxPoints = -1;
       let minPoints = Infinity;
       let winners = [];
       let lowestUser = null;
 
-      userIds.forEach((uidStr) => {
-        const uid = Number(uidStr);
-        const pts = scores[uid];
-        const user = usersMap[uid] || { id: uid, name: `Usuário ${uid}` };
-
-        if (pts > maxPoints) {
-          maxPoints = pts;
-          winners = [{ id: uid, name: user.name, points: pts }];
-        } else if (pts === maxPoints) {
-          winners.push({ id: uid, name: user.name, points: pts });
+      scores.forEach((item) => {
+        if (item.points > maxPoints) {
+          maxPoints = item.points;
+          winners = [item.name];
+        } else if (item.points === maxPoints) {
+          winners.push(item.name);
         }
 
-        if (pts < minPoints) {
-          minPoints = pts;
-          lowestUser = { id: uid, name: user.name, points: pts };
+        if (item.points < minPoints) {
+          minPoints = item.points;
+          lowestUser = item;
         }
       });
 
       return {
-        key: roundKey,
+        key: groupKey,
         label: meta.label,
-        round: meta.round,
         sortOrder: meta.sortOrder,
         points: Math.max(0, maxPoints),
         winners,
+        winnerName: winners.join(', '),
         lowestUser,
       };
     })
@@ -216,79 +234,43 @@ export async function getLeagueStats({ userLeagueId, officialLeagueId, season })
 
   bestByRound.sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // Ranking geral com cálculo dos Gaps
-  const sortedRanking = Object.values(userStats).sort((a, b) => {
-    if (b.totalPoints !== a.totalPoints) {
-      return b.totalPoints - a.totalPoints;
-    }
-    if (b.exactCount !== a.exactCount) {
-      return b.exactCount - a.exactCount;
-    }
-    return a.name.localeCompare(b.name);
-  });
-
-  const leaderPoints = sortedRanking.length > 0 ? sortedRanking[0].totalPoints : 0;
-
-  const rankingWithGaps = sortedRanking.map((user, index) => {
-    const position = index + 1;
-    const isLeader = index === 0;
-    const aheadUser = index > 0 ? sortedRanking[index - 1] : null;
-
-    const diffToLeader = isLeader ? 0 : Math.max(0, leaderPoints - user.totalPoints);
-    const diffToAhead = isLeader ? 0 : Math.max(0, aheadUser.totalPoints - user.totalPoints);
-
-    const exactPercentage =
-      user.totalPredictions > 0
-        ? Number(((user.exactCount / user.totalPredictions) * 100).toFixed(1))
-        : 0;
-
-    return {
-      ...user,
-      position,
-      isLeader,
-      diffToLeader,
-      diffToAhead,
-      aheadPosition: index,
-      aheadName: aheadUser?.name ?? null,
-      exactPercentage,
-    };
-  });
-
-  // Destaques da Liga
+  // ==========================================
+  // HALL DA FAMA / DESTAQUES DA TEMPORADA
+  // ==========================================
+  // 1. Mais Certeiro: participante com maior número de cravadas vindo do ranking_detalhado
   let topExactUser = null;
-  const usersWithPredictions = rankingWithGaps.filter((u) => u.totalPredictions > 0);
-  if (usersWithPredictions.length > 0) {
-    const sortedByExact = [...usersWithPredictions].sort((a, b) => {
-      if (b.exactCount !== a.exactCount) return b.exactCount - a.exactCount;
+  if (rankingWithGaps.length > 0) {
+    const sortedByExact = [...rankingWithGaps].sort((a, b) => {
+      if (b.cravadas !== a.cravadas) return b.cravadas - a.cravadas;
       return b.exactPercentage - a.exactPercentage;
     });
-    const candidate = sortedByExact[0];
-    if (candidate && candidate.exactCount > 0) {
+
+    const top = sortedByExact[0];
+    if (top && top.cravadas > 0) {
       topExactUser = {
-        id: candidate.id,
-        name: candidate.name,
-        exactCount: candidate.exactCount,
-        percentage: candidate.exactPercentage,
+        name: top.name,
+        cravadas: top.cravadas,
+        percentage: top.exactPercentage,
       };
     }
   }
 
-  // Maior pontuação em uma única rodada
+  // 2. Recorde de Pontos em uma Rodada
   let recordRoundUser = null;
-  let highestSingleRoundScore = -1;
+  let highestRoundScore = -1;
 
   bestByRound.forEach((r) => {
-    if (r.points > highestSingleRoundScore && r.winners.length > 0) {
-      highestSingleRoundScore = r.points;
+    if (r.points > highestRoundScore && r.winners.length > 0) {
+      highestRoundScore = r.points;
       recordRoundUser = {
-        name: r.winners.map((w) => w.name).join(', '),
+        name: r.winners.join(', '),
         points: r.points,
         roundLabel: r.label,
       };
     }
   });
 
-  // Menor pontuação em rodada finalizada
+  // 3. Secador da Rodada (menor pontuação registrada em rodada com palpites)
   let worstRoundUser = null;
   let lowestRoundScore = Infinity;
 
@@ -303,21 +285,18 @@ export async function getLeagueStats({ userLeagueId, officialLeagueId, season })
     }
   });
 
-  // Eficiência geral da liga
-  const totalLeaguePoints = validPredictions.reduce(
-    (acc, p) => acc + Number(p.points_earned || 0),
-    0
-  );
-  const totalLeagueExacts = rankingWithGaps.reduce((acc, u) => acc + u.exactCount, 0);
+  // 4. Eficiência Geral da Liga
+  const totalLeaguePoints = rankingWithGaps.reduce((acc, u) => acc + u.totalPoints, 0);
+  const totalLeagueExacts = rankingWithGaps.reduce((acc, u) => acc + u.cravadas, 0);
+  const totalLeagueGames = rankingWithGaps.reduce((acc, u) => acc + u.totalJogos, 0);
   const averagePointsPerPred =
-    validPredictions.length > 0 ? (totalLeaguePoints / validPredictions.length).toFixed(1) : '0.0';
+    totalLeagueGames > 0 ? (totalLeaguePoints / totalLeagueGames).toFixed(1) : '0.0';
 
   const leagueEfficiency = {
     totalPoints: totalLeaguePoints,
     totalExacts: totalLeagueExacts,
     averagePointsPerPred,
-    totalPredictions: validPredictions.length,
-    finishedMatches: validMatches.length,
+    finishedMatches: matches.length,
   };
 
   return {
@@ -330,6 +309,6 @@ export async function getLeagueStats({ userLeagueId, officialLeagueId, season })
       worstRoundUser,
       leagueEfficiency,
     },
-    totalMatches: validMatches.length,
+    totalMatches: matches.length,
   };
 }
