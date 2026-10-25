@@ -12,6 +12,7 @@ import ResetPassword from './pages/ResetPassword';
 import LeagueSettings from './pages/LeagueSettings';
 import WhatIf from './pages/WhatIf';
 import UserSettings from './pages/UserSettings';
+import Stats from './pages/Stats';
 
 function App() {
   const [session, setSession] = useState(undefined);
@@ -45,6 +46,7 @@ function App() {
       <Route path="/leagues/:ligaId/ranking" element={session ? <Ranking /> : <Navigate to="/" replace />} />
       <Route path="/leagues/:ligaId/settings" element={session ? <LeagueSettings /> : <Navigate to="/" replace />} />
       <Route path="/leagues/:ligaId/whatif" element={session ? <WhatIf /> : <Navigate to="/" replace />} />
+      <Route path="/leagues/:ligaId/stats" element={session ? <Stats /> : <Navigate to="/" replace />} />
 
       {/* Fallback para rotas inexistentes */}
       <Route path="*" element={<Navigate to="/" replace />} />

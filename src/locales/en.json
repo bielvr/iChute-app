@@ -123,7 +123,8 @@
     "results": "Results",
     "predictions": "Predictions",
     "ranking": "Ranking",
-    "whatif": "What if?"
+    "whatif": "What if?",
+    "stats": "Stats"
   },
   "header": {
     "statusSynced": "Synced with Supabase"

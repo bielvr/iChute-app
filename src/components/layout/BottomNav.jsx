@@ -1,5 +1,5 @@
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { LayoutGrid, PenLine, Trophy, HelpCircle } from 'lucide-react';
+import { LayoutGrid, PenLine, Trophy, HelpCircle, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export default function BottomNav() {
@@ -13,6 +13,7 @@ export default function BottomNav() {
     { id: 'predictions', label: t('nav.predictions'), icon: PenLine, path: `/predictions/${ligaId}` },
     { id: 'ranking', label: t('nav.ranking'), icon: Trophy, path: `/leagues/${ligaId}/ranking` },
     { id: 'whatif', label: t('nav.whatif'), icon: HelpCircle, path: `/leagues/${ligaId}/whatif` },
+    { id: 'stats', label: t('nav.stats', { defaultValue: 'Stats' }), icon: BarChart3, path: `/leagues/${ligaId}/stats` },
   ];
 
   return (
@@ -21,7 +22,8 @@ export default function BottomNav() {
         const isActive =
           location.pathname === tab.path ||
           (tab.id === 'predictions' && location.pathname.startsWith(`/predictions/${ligaId}`)) ||
-          (tab.id === 'whatif' && location.pathname.endsWith('/whatif'));
+          (tab.id === 'whatif' && location.pathname.endsWith('/whatif')) ||
+          (tab.id === 'stats' && location.pathname.endsWith('/stats'));
 
         const Icon = tab.icon;
 
@@ -29,11 +31,11 @@ export default function BottomNav() {
           <button
             key={tab.id}
             onClick={() => navigate(tab.path)}
-            className={`flex flex-col items-center gap-1 transition-all min-w-[64px] ${
-              isActive ? 'text-[#0077FF]' : 'text-gray-500'
+            className={`flex flex-col items-center gap-1 transition-all min-w-[56px] sm:min-w-[64px] ${
+              isActive ? 'text-[#0077FF]' : 'text-gray-500 hover:text-gray-300'
             }`}
           >
-            <Icon size={24} strokeWidth={isActive ? 3 : 2} />
+            <Icon size={22} strokeWidth={isActive ? 3 : 2} />
             <span className="text-[10px] font-black uppercase italic tracking-tighter">
               {tab.label}
             </span>
