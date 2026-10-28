@@ -116,14 +116,15 @@ export default function Comparison() {
         const currentSeason = await getLatestSeason(leagueContext.officialLeagueId);
         const football = leagueContext.sportId === 1;
 
-        // Alinhado para priorizar o próximo jogo (nextMatch ?? lastMatch) impedindo corte no dia atual
-        const [availableRounds, nextMatch, lastMatch] = await Promise.all([
+        // Foca no último jogo realizado/finalizado
+        const [availableRounds, lastMatch, nextMatch] = await Promise.all([
           football ? getRounds(leagueContext.officialLeagueId, currentSeason) : Promise.resolve([]),
-          getNearestMatch({ leagueId: leagueContext.officialLeagueId, season: currentSeason, direction: 'next' }),
           getNearestMatch({ leagueId: leagueContext.officialLeagueId, season: currentSeason, direction: 'previous' }),
+          getNearestMatch({ leagueId: leagueContext.officialLeagueId, season: currentSeason, direction: 'next' }),
         ]);
 
-        const referenceMatch = nextMatch ?? lastMatch;
+        // Foca no último jogo realizado/finalizado
+        const referenceMatch = lastMatch ?? nextMatch;
         const initialDate = referenceMatch ? toInputDate(referenceMatch.date) : toInputDate(new Date());
         const initialRound = football ? (referenceMatch?.round ?? availableRounds[0] ?? '') : null;
 
